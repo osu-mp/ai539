@@ -87,6 +87,9 @@ def main_freq():
 	plt.close()
 	plt.pause(0.01)
 
+	logging.info('Stopping early')
+	return
+
 
 	logging.info("Computing PPMI matrix")
 	PPMI = compute_ppmi_matrix( [doc['text'] for doc in dataset['train']], vocab)
