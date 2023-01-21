@@ -13,16 +13,18 @@ if os.name == "nt":
 import matplotlib.pyplot as plt
 
 # if DEBUG is set to true: display plots, else do not display
-DEBUG = True
+DEBUG = False
+
+MIN_FREQ = 100
 
 class UnimplementedFunctionError(Exception):
 	pass
 
 class Vocabulary:
 
-	def __init__(self, corpus):
+	def __init__(self, corpus, min_freq=MIN_FREQ):
 
-		self.word2idx, self.idx2word, self.freq = self.build_vocab(corpus)
+		self.word2idx, self.idx2word, self.freq = self.build_vocab(corpus, min_freq)
 		self.size = len(self.word2idx)
 
 	def most_common(self, k):
@@ -52,7 +54,9 @@ class Vocabulary:
 	    :returns:
 	    - tokens: a list of strings derived from the text, e.g. ["the", "blue", "dog", "jumped", "but", "not", "high"] for word-level tokenization
 	    
-	    """ 
+	    """
+		# split hyphenated words into components: king-size -> king size
+		text = text.replace('-', ' ')
 		words = nltk.word_tokenize(text)
 		words = [word.lower() for word in words if word.isalpha()]
 		return words
@@ -61,7 +65,7 @@ class Vocabulary:
 	###########################
 	## TASK 1.2            	 ##
 	###########################
-	def build_vocab(self, corpus):
+	def build_vocab(self, corpus, min_freq):
 		"""
 	    
 	    build_vocab takes in list of strings corresponding to a text corpus, tokenizes the strings, and builds a finite vocabulary
@@ -83,15 +87,27 @@ class Vocabulary:
 		for str in corpus:
 			tokens = self.tokenize(str)
 			for token in tokens:
-				if token in word2idx:
+				if token in freq:
 					freq[token] += 1
 				else:		# token not seen yet
-					word2idx[token] = curr_count
-					idx2word[curr_count] = token
+					# word2idx[token] = curr_count
+					# idx2word[curr_count] = token
 					freq[token] = 1
 					curr_count += 1
 
-		# TODO: determine threshold for word2idx
+		# build word2idx for words above the threshold
+		i = 0
+		for key in freq.keys():
+			if freq[key] >= min_freq:
+				word2idx[key] = i
+				i += 1
+
+		# if words were cut out, make and 'unknown' entry
+		if len(freq) != len(word2idx):
+			word2idx["UNK"] = i
+
+		# word2idx = {k: v for k, }
+		idx2word = {v: k for k, v in word2idx.items()}
 
 		return word2idx, idx2word, freq
 
@@ -124,8 +140,12 @@ class Vocabulary:
 		plt.yscale('log')
 		plt.ylabel('Frequency')
 		plt.xlabel('Token ID (sorted by frequency)')
+		plt.hlines(MIN_FREQ, xmin=0, xmax=len(freq_y), colors='red')
+		plt.text(len(freq_y), MIN_FREQ*0.7, f'Freq={MIN_FREQ}', ha='right', va='center', color='red')
 		plt.title('Token Frequency Distribution')
-		plt.savefig('token_freq_dist.png')
+		fname = '1_3_token_freq_dist.png'
+		plt.savefig(fname)
+		print(f'Saved plot: {fname}')
 
 		if DEBUG:
 			plt.show()
@@ -133,15 +153,26 @@ class Vocabulary:
 		# Cumulative Fraction Covered
 		frac_y = []
 		token_count = 0
+		cutoff_line = 0
+		cutoff_sum = 0
 		for count in frac_count:
 			token_count += count
 			frac_y.append(token_count / total_tokens)
+			if count >= MIN_FREQ:
+				cutoff_line += 1
+				cutoff_sum += count
+
+		covered = cutoff_sum / token_count
 		plt.figure()
 		plt.plot(x, frac_y)
 		plt.ylabel('Fraction of Token Occurrences Covered')
 		plt.xlabel('Token ID (sorted by frequency)')
+		plt.vlines(cutoff_line, ymin=0, ymax=1, colors='red')
+		plt.text(cutoff_line * 1.2, 1, f'{covered:1.2f}', color='red')
 		plt.title('Cumulative Fraction Covered')
-		plt.savefig('cumulative_frac_cov.png')
+		fname = '1_3_cumulative_frac_cov.png'
+		plt.savefig(fname)
+		print(f'Saved plot: {fname}')
 
 		if DEBUG:
 			plt.show()

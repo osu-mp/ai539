@@ -83,6 +83,8 @@ def main_freq():
 
 	logging.info("Building vocabulary")
 	vocab = Vocabulary(dataset_text)
+	print(f'Len on vocab: {len(vocab.word2idx)}')
+	print(f'Freq count len: {len(vocab.freq)}')
 	vocab.make_vocab_charts()
 	plt.close()
 	plt.pause(0.01)

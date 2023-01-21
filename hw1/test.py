@@ -11,6 +11,11 @@ class TestHW1(unittest.TestCase):
         exp = ["the", "blue", "dog", "jumped", "but", "not", "high"]
         act = Vocabulary.tokenize(None, str)
         self.assertEqual(exp, act)
+        str = "Split hyphenated compound words like editor-in-chief"
+        exp = ["split", "hyphenated", "compound", "words",
+               "like", "editor", "in", "chief"]
+        act = Vocabulary.tokenize(None, str)
+        self.assertEqual(exp, act)
 
     def test_build_vocab(self):
         """
@@ -23,11 +28,6 @@ class TestHW1(unittest.TestCase):
             "blah BLAH Blah string"
         ]
 
-        """
-        - word2idx: a dictionary mapping token strings to their numerical index in the dictionary e.g. { "dog": 0, "but":1, ..., "UNK":129}
-	    - idx2word: the inverse of word2idx mapping an index in the vocabulary to its word e.g. {0: "dog", 1:"but", ..., 129:"UNK"}
-	    - freq: a dictionary of words and frequency counts over the corpus (including words not in the dictionary), e.g. {"dog":102, "the": 18023, ...}
-        """
         exp_word2idx = {
             "this": 0,
             "is": 1,
@@ -56,6 +56,36 @@ class TestHW1(unittest.TestCase):
         self.assertEqual(exp_word2idx, vocab.word2idx)
         self.assertEqual(exp_idx2word, vocab.idx2word)
         self.assertEqual(exp_freq, vocab.freq)
+
+        # now set the minimum occurrence to 2 and recalculate
+        exp_word2idx = {
+            "this": 0,
+            "is": 1,
+            "string": 2,
+            "blah": 3,
+            "UNK": 4,
+        }
+        exp_idx2word = {
+            0: "this",
+            1: "is",
+            2: "string",
+            3: "blah",
+            4: "UNK",
+        }
+        exp_freq = {
+            "this": 2,
+            "is": 2,
+            "string": 3,
+            "blah": 3,
+            "one": 1,
+            "another": 1,
+        }
+        # re-run but set a minimum threshold of 2 occurrences to be in output
+        vocab = Vocabulary(corpus, min_freq=2)
+        self.assertEqual(exp_word2idx, vocab.word2idx)
+        self.assertEqual(exp_idx2word, vocab.idx2word)
+        self.assertEqual(exp_freq, vocab.freq)
+
 
 if __name__ == '__main__':
     unittest.main()
