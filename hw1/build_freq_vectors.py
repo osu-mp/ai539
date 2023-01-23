@@ -26,6 +26,9 @@ class UnimplementedFunctionError(Exception):
 ## TASK 2.2              ##
 ###########################
 
+CONTEXT_SIZE = 2
+PPMI_CONST = 0.000001				# small constant to avoid calculation of log(0)
+
 def compute_cooccurrence_matrix(corpus, vocab):
 	"""
 	    
@@ -37,13 +40,135 @@ def compute_cooccurrence_matrix(corpus, vocab):
 	    - vocab: a Vocabulary object derived from the corpus with N words
 
 	    :returns: 
-	    - C: a N x N matrix where the i,j'th entry is the co-occurrence frequency from the corpus between token i and j in the vocabulary
+	    - C: a N x N matrix where the i,j'th entry is the co-occurrence frequency from the corpus
+	     between token i and j in the vocabulary
 
-	    """ 
+	    """
 
-	# REMOVE THIS ONCE YOU IMPLEMENT THIS FUNCTION
-	raise UnimplementedFunctionError("You have not yet implemented compute_count_matrix.")
+	'''
+	https://towardsdatascience.com/word-vectors-intuition-and-co-occurence-matrixes-a7f67cae16cd
 	
+	▶ TASK 2.2 [2pt] Implement the compute_cooccurrence_matrix function in build_freq_vectors.py
+which takes a list of article overviews and a vocabulary and produces a co-occurrence matrix C. It is up to
+the student to define what a context is. Note that looping in Python is quite slow such that unoptimized
+versions of this function can take quite a long time. Feel free to save the result while you are developing to
+reduce time in future runs (see numpy.save/numpy.load). In your writeup for this task, describe how you
+defined your context
+	'''
+	print('compute_cooccurrence_matrix')
+	# last entry in vocab is UNK, so does not need to be accounted for
+	vocab_size = len(vocab.idx2word) - 1
+
+	# init all co-occurrences to zero
+	C = np.zeros((vocab_size, vocab_size))
+
+	# check each line in the corpus
+	for line in tqdm(corpus):
+		# tokenize the line and check pairings in each context
+		tokens = vocab.tokenize(line)
+		for index, i_word in enumerate(tokens):
+			# only check the first word if it is in the vocab (skip UNK)
+			if i_word in vocab.word2idx:
+				i_ind = vocab.word2idx[i_word]
+				# build a context at that index of a couple words ahead of and after the given word
+				context = get_context(tokens, index)
+				for j_word in context:
+					if j_word in vocab.word2idx:
+						# if the second words is in the vocab, increment the cooccurrence matrix
+						j_ind = vocab.word2idx[j_word]
+						C[i_ind][j_ind] += 1
+	return C
+
+def bad_pmi(corpus, vocab):
+	# this also does not work
+	for line in tqdm(corpus):
+		tokens = vocab.tokenize(line)
+		for pos, element in enumerate(tokens):
+			if element in vocab.word2idx:
+				start = max(0, pos - CONTEXT_SIZE)
+				stop = min(len(tokens), pos + CONTEXT_SIZE + 1)
+				context = tokens[start:stop]
+				print(f'{element} : {context}')
+				for word in context:
+					if word in vocab.word2idx:
+						C[vocab.word2idx[element]][vocab.word2idx[word]] += 1
+
+			#
+			#
+			#
+			# for word in context:
+			# 	if word in vocab.word2dx:
+			# 		index = vocab.word2dx[word]
+			# 		C[word]
+			# if i_word in context and j_word in context:
+			# 	C[i][j] += 1
+			#
+			# if (window + CONTEXT_SIZE) > len(tokens):
+			# 	break
+
+	return C
+
+def get_context(tokens, index):
+	"""
+	Given a tokenized string and index, return a couple words before and after the given index
+	:param tokens:
+	:param index:
+	:return:
+	"""
+	context = []
+	if index == 0:
+		return tokens[1:CONTEXT_SIZE + 1]
+	if index == 1:
+		context.append(tokens[0])
+		context.extend(tokens[2:CONTEXT_SIZE + 2])
+	# TODO : logic is sensitive to CONTEXT SIZE of 2 (needs to be adjusted if changed)
+	else:
+		context.extend(tokens[index - CONTEXT_SIZE:index])
+		context.extend(tokens[index + 1:index + CONTEXT_SIZE + 1])
+	return context
+def old_pmi(corpus, vocab):
+	for i in tqdm(range(vocab_size)):
+		i_word = vocab.idx2word[i]
+		for j in range(vocab_size):
+			j_word = vocab.idx2word[j]
+			for line in corpus:             	
+				tokens = vocab.tokenize(line)
+				# import pdb;
+				# pdb.set_trace()
+				for window in range(CONTEXT_SIZE, len(tokens)):
+					context = tokens[window - CONTEXT_SIZE:window + CONTEXT_SIZE]
+
+					if i_word in context and j_word in context:
+						C[i][j] += 1
+
+					if (window + CONTEXT_SIZE) > len(tokens):
+						break
+				# if 'blah' in tokens:
+				# 	import pdb; pdb.set_trace()
+				# if i_word in tokens and j_word in tokens:
+				# 	C[i][j] += 1
+			#
+			# print(f'Building row for word: {vocab.idx2word[i]}')
+			# row = np.zeros(vocab_size)
+			# for line in corpus:
+			# 	for j in vocab.tokenize(line):
+			# 		if j in vocab.word2idx:
+			# 			row_index = vocab.word2idx[j]
+			# 			row[row_index] += 1
+
+		# C.append(row)
+
+	# import pdb;
+	# pdb.set_trace()
+	#
+	# for word in vocab.word2idx:
+	# 	row = []
+	# 	for word in vocab.word2idx:
+	# 		row.append(0)
+	# 	C.append(row)
+
+	return C
+
 
 ###########################
 ## TASK 2.3              ##
@@ -62,8 +187,9 @@ def compute_ppmi_matrix(corpus, vocab):
 	    :returns: 
 	    - PPMI: a N x N matrix where the i,j'th entry is the estimated PPMI from the corpus between token i and j in the vocabulary
 
-	    """ 
+	    """
 
+	# TODO : ensure PPMI has a min of small number (not 0) : PPMI_CONST
 	# REMOVE THIS ONCE YOU IMPLEMENT THIS FUNCTION
 	raise UnimplementedFunctionError("You have not yet implemented compute_ppmi_matrix.")
 

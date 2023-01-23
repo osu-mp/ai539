@@ -102,9 +102,9 @@ class Vocabulary:
 				word2idx[key] = i
 				i += 1
 
-		# if words were cut out, make and 'unknown' entry
-		if len(freq) != len(word2idx):
-			word2idx["UNK"] = i
+		# if words were cut out, make an 'unknown' entry
+		# if len(freq) != len(word2idx):
+		word2idx["UNK"] = i
 
 		# word2idx = {k: v for k, }
 		idx2word = {v: k for k, v in word2idx.items()}

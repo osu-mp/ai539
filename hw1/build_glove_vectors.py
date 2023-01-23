@@ -41,6 +41,11 @@ def main_glove():
 
 	logging.info("Computing count matrix")
 	C = compute_cooccurrence_matrix( [doc['text'] for doc in dataset['train']], vocab)
+	fname = 'pmi_context_3.npy'
+	np.save(fname, C)
+	print(f'PMI saved to {fname}')
+	# print(C)
+	# exit(1)
 
 	########################################################################
 	# Hyperparmeters and Optimization Variables
@@ -114,7 +119,7 @@ def main_glove():
 
 
 			# REMOVE THIS ONCE YOU IMPLEMENT THIS SECTION
-			raise UnimplementedFunctionError("You have not yet implemented the batch gradients.")
+			# raise UnimplementedFunctionError("You have not yet implemented the batch gradients.")
 
 			# write expressions using numpy to implement the gradients you derive in 3.1. 
 			wordvecs_grad = np.zeros( (bSize,d) )
