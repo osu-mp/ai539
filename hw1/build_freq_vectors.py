@@ -1,3 +1,4 @@
+import math
 
 from datasets import load_dataset
 from Vocabulary import Vocabulary
@@ -190,8 +191,13 @@ def compute_ppmi_matrix(corpus, vocab):
 	    """
 
 	# TODO : ensure PPMI has a min of small number (not 0) : PPMI_CONST
-	# REMOVE THIS ONCE YOU IMPLEMENT THIS FUNCTION
-	raise UnimplementedFunctionError("You have not yet implemented compute_ppmi_matrix.")
+	pmi = compute_cooccurrence_matrix(corpus, vocab)
+
+	for i, row in enumerate(pmi):
+		for j, col in enumerate(row):
+			pmi[i][j] = math.log(pmi[i][j] + PPMI_CONST)
+
+	return pmi
 
 
 	
@@ -215,8 +221,8 @@ def main_freq():
 	plt.close()
 	plt.pause(0.01)
 
-	logging.info('Stopping early')
-	return
+	# logging.info('Stopping early')
+	# return
 
 
 	logging.info("Computing PPMI matrix")
