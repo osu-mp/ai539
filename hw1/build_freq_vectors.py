@@ -28,7 +28,7 @@ class UnimplementedFunctionError(Exception):
 ###########################
 
 CONTEXT_SIZE = 2
-PPMI_CONST = 0.000001				# small constant to avoid calculation of log(0)
+PPMI_CONST = 0.0000001				# small constant to avoid calculation of log(0)
 
 def compute_cooccurrence_matrix(corpus, vocab):
 	"""
@@ -80,34 +80,6 @@ defined your context
 						C[i_ind][j_ind] += 1
 	return C
 
-def bad_pmi(corpus, vocab):
-	# this also does not work
-	for line in tqdm(corpus):
-		tokens = vocab.tokenize(line)
-		for pos, element in enumerate(tokens):
-			if element in vocab.word2idx:
-				start = max(0, pos - CONTEXT_SIZE)
-				stop = min(len(tokens), pos + CONTEXT_SIZE + 1)
-				context = tokens[start:stop]
-				print(f'{element} : {context}')
-				for word in context:
-					if word in vocab.word2idx:
-						C[vocab.word2idx[element]][vocab.word2idx[word]] += 1
-
-			#
-			#
-			#
-			# for word in context:
-			# 	if word in vocab.word2dx:
-			# 		index = vocab.word2dx[word]
-			# 		C[word]
-			# if i_word in context and j_word in context:
-			# 	C[i][j] += 1
-			#
-			# if (window + CONTEXT_SIZE) > len(tokens):
-			# 	break
-
-	return C
 
 def get_context(tokens, index):
 	"""
@@ -127,48 +99,6 @@ def get_context(tokens, index):
 		context.extend(tokens[index - CONTEXT_SIZE:index])
 		context.extend(tokens[index + 1:index + CONTEXT_SIZE + 1])
 	return context
-def old_pmi(corpus, vocab):
-	for i in tqdm(range(vocab_size)):
-		i_word = vocab.idx2word[i]
-		for j in range(vocab_size):
-			j_word = vocab.idx2word[j]
-			for line in corpus:             	
-				tokens = vocab.tokenize(line)
-				# import pdb;
-				# pdb.set_trace()
-				for window in range(CONTEXT_SIZE, len(tokens)):
-					context = tokens[window - CONTEXT_SIZE:window + CONTEXT_SIZE]
-
-					if i_word in context and j_word in context:
-						C[i][j] += 1
-
-					if (window + CONTEXT_SIZE) > len(tokens):
-						break
-				# if 'blah' in tokens:
-				# 	import pdb; pdb.set_trace()
-				# if i_word in tokens and j_word in tokens:
-				# 	C[i][j] += 1
-			#
-			# print(f'Building row for word: {vocab.idx2word[i]}')
-			# row = np.zeros(vocab_size)
-			# for line in corpus:
-			# 	for j in vocab.tokenize(line):
-			# 		if j in vocab.word2idx:
-			# 			row_index = vocab.word2idx[j]
-			# 			row[row_index] += 1
-
-		# C.append(row)
-
-	# import pdb;
-	# pdb.set_trace()
-	#
-	# for word in vocab.word2idx:
-	# 	row = []
-	# 	for word in vocab.word2idx:
-	# 		row.append(0)
-	# 	C.append(row)
-
-	return C
 
 
 ###########################
@@ -190,14 +120,16 @@ def compute_ppmi_matrix(corpus, vocab):
 
 	    """
 
-	# TODO : ensure PPMI has a min of small number (not 0) : PPMI_CONST
+	# ensure PPMI has a min of small number (not 0) : PPMI_CONST
 	pmi = compute_cooccurrence_matrix(corpus, vocab)
+	ppmi = np.zeros(pmi.shape)
 
 	for i, row in enumerate(pmi):
 		for j, col in enumerate(row):
-			pmi[i][j] = math.log(pmi[i][j] + PPMI_CONST)
+			# ensure the ppmi calculates using a minimum of PPMI (small value to avoid log(0))
+			ppmi[i][j] = math.log(max(PPMI_CONST, pmi[i][j]))
 
-	return pmi
+	return ppmi
 
 
 	

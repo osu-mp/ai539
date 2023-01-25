@@ -55,9 +55,11 @@ class Vocabulary:
 	    - tokens: a list of strings derived from the text, e.g. ["the", "blue", "dog", "jumped", "but", "not", "high"] for word-level tokenization
 	    
 	    """
-		# split hyphenated words into components: king-size -> king size
-		text = text.replace('-', ' ')
-		words = nltk.word_tokenize(text)
+		# split hyphenated words into components: king-size -> king size, remove punctuation
+		for char in ['-', '.', ',', '!', ';', '"', '\'', ':']:
+			text = text.replace(char, ' ')
+		# words = nltk.word_tokenize(text)
+		words = text.split(' ')
 		words = [word.lower() for word in words if word.isalpha()]
 		return words
 
