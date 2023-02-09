@@ -30,7 +30,10 @@ w_gx = 0
 w_gh = 0
 b_g = 0
 
-
+#oh
+# 0,0,40
+# g
+# 40,0,0
 ################################
 
 # The below code runs through all length 14 binary strings and throws an error 
@@ -58,6 +61,8 @@ for X in itertools.product([0,1], repeat=14):
 
 def test_weights(w_ix, w_ih, b_i, w_fx, w_fh, b_f, w_ox, w_oh, b_o, w_gx, w_gh, b_g):
   cnt = 0
+  status = True
+  pass_cnt = 0
   for X in itertools.product([0, 1], repeat=14):
     c = 0
     h = 0
@@ -71,16 +76,18 @@ def test_weights(w_ix, w_ih, b_i, w_fx, w_fh, b_f, w_ox, w_oh, b_o, w_gx, w_gh, 
       h = o * np.tanh(c)
     if np.sum(X) % 2 != int(h > 0.5):
       # print("Failure", cnt, X, int(h > 0.5), np.sum(X) % 2 == int(h > 0.5))
-      return False, cnt
+      status = False
+    else:
+      pass_cnt += 1
     # if cnt % 1000 == 0:
     #   print(cnt)
 
-  return True, cnt
+  return status, pass_cnt
 
 
 def brute_force():
   # yeah, best I can come up with right now
-  values = [0, 0.1, 0.5, 1, 10, 50, 100, 500, 1000]
+  values = [0, 0.05, 0.1, 0.5, 1, 10, 50, 100, 1000]
   best = 0
 
   for w_ix in values:
