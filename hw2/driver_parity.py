@@ -67,7 +67,7 @@ class ParityLSTM(torch.nn.Module) :
         super().__init__()
 
         self.hidden_dim = hidden_dim
-        
+
 
         # from slide 20:
         # TODO: do insize and outsize need to be specified in init?
