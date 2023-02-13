@@ -30,6 +30,13 @@ torch.manual_seed(42)
 # Determine if a GPU is available for use, define as global variable
 dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
+# References:
+# https://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
+# https://wandb.ai/sauravmaheshkar/LSTM-PyTorch/reports/Using-LSTM-in-PyTorch-A-Tutorial-With-Examples--VmlldzoxMDA2NTA5
+# https://gist.github.com/HarshTrivedi/f4e7293e941b17d19058f6fb90ab0fec
+# https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
+# https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
+
 # Main Driver Loop
 def main():
 
@@ -67,7 +74,13 @@ class ParityLSTM(torch.nn.Module) :
         super().__init__()
 
         self.hidden_dim = hidden_dim
+        self.num_layers = 2
+        self.lstm = nn.LSTM(input_size=2, hidden_size=hidden_dim, num_layers=self.num_layers, batch_first=True)
 
+        # TODO
+        self.fc = nn.Linear(in_features=hidden_dim, out_features=2)
+        self.h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
+        self.c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
 
         # from slide 20:
         # TODO: do insize and outsize need to be specified in init?
@@ -106,6 +119,21 @@ class ParityLSTM(torch.nn.Module) :
     #   out -- a batch_size x 2 tensor of scores for even/odd parity    
 
     def forward(self, x, s):
+        padded = torch.unsqueeze(x, 1)
+        packed_input = pack_padded_sequence(padded, s, batch_first=True, enforce_sorted=False)
+
+        # TODO
+        h_0 = self.h_0.unsqueeze(1).expand(-1, len(s), -1)
+        c_0 = self.c_0.unsqueeze(1).expand(-1, len(s), -1)
+        # TODO
+
+        packed_output, (ht, ct) = self.lstm(packed_input, (h_0, c_0))
+
+
+        out = self.fc(ht[-1])
+        return F.softmax(out, dim=1)
+        # output, input_sizes = pad_packed_sequence(packed_output, batch_first=True)
+        raise Exception(packed)
         # TODO: from slide 20
         # out = F.relu(self.linear(x))
         # out = F.dropout(out, 0.5)
@@ -192,7 +220,7 @@ def pad_collate(batch):
       x_lens = [len(x) for x in xx]
 
       xx_pad = pad_sequence(xx, batch_first=True, padding_value=0)
-      yy = torch.LongTensor(yy)
+      yy = torch.Tensor(yy)
 
       return xx_pad, yy, x_lens
 
