@@ -29,13 +29,14 @@ torch.manual_seed(42)
 
 # Determine if a GPU is available for use, define as global variable
 dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
+# dev = torch.device('cpu')
 # References:
 # https://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
 # https://wandb.ai/sauravmaheshkar/LSTM-PyTorch/reports/Using-LSTM-in-PyTorch-A-Tutorial-With-Examples--VmlldzoxMDA2NTA5
 # https://gist.github.com/HarshTrivedi/f4e7293e941b17d19058f6fb90ab0fec
 # https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
 # https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
+# https://pytorch.org/tutorials/beginner/former_torchies/nnft_tutorial.html
 
 # Main Driver Loop
 def main():
@@ -75,35 +76,22 @@ class ParityLSTM(torch.nn.Module) :
 
         self.hidden_dim = hidden_dim
         self.num_layers = 2
+        self.lstm = nn.LSTM(input_size=1, hidden_size=self.hidden_dim, num_layers=self.num_layers, batch_first=True)
+        self.fc = nn.Linear(in_features=self.hidden_dim, out_features=2)
+        self.h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
+        self.c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
+
+        return
+        # TODO
+
+        self.hidden_dim = hidden_dim
+        self.num_layers = 2
         self.lstm = nn.LSTM(input_size=2, hidden_size=hidden_dim, num_layers=self.num_layers, batch_first=True)
 
         # TODO
         self.fc = nn.Linear(in_features=hidden_dim, out_features=2)
         self.h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
         self.c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
-
-        # from slide 20:
-        # TODO: do insize and outsize need to be specified in init?
-        # self.linear = nn.Linear(insize, 128)
-        # self.linear2 == nn.Linear(128, outsize)
-
-        # from slide 27
-        # self.embd = WordEncoder(embeddings)
-        # self.classifier = SimpleClassifier(2*embeddings.shape[1], 5)
-
-        # slide 32
-        # self.hidden_dim = hidden_dim
-        # self.embed = WordEncoder(embeddings)
-        # self.classifier = SimpleClassifier(hidden_dim, 5)
-        # self.gru = nn.GRU(embeddings.shape[1], hidden_dim, batch_first=True)
-
-        # tutorial:  https://pytorch.org/tutorials/beginner/former_torchies/nnft_tutorial.html
-        # self.conv1 = nn.Conv2d(1, 10, 5)
-        #         self.pool1 = nn.MaxPool2d(2, 2)
-        #         self.conv2 = nn.Conv2d(10, 20, 5)
-        #         self.pool2 = nn.MaxPool2d(2, 2)
-        #         self.fc1 = nn.Linear(320, 50)
-        #         self.fc2 = nn.Linear(50, 10)
 
     
     # forward runs the model on an B x max_length x 1 tensor and outputs a B x 2 tensor representing a score for 
@@ -119,6 +107,16 @@ class ParityLSTM(torch.nn.Module) :
     #   out -- a batch_size x 2 tensor of scores for even/odd parity    
 
     def forward(self, x, s):
+        x = x.unsqueeze(-1)
+        s_len = len(s)
+        h_0 = self.h_0.unsqueeze(1).expand(-1, s_len, -1)
+        c_0 = self.c_0.unsqueeze(1).expand(-1, s_len, -1)
+        x = pack_padded_sequence(x, s, batch_first=True, enforce_sorted=False)
+        _, (final_hidden_state, _) = self.lstm(x, (h_0, c_0))
+        out = self.fc(final_hidden_state[-1])
+        return F.softmax(out, dim=-1)
+        # TODO
+
         padded = torch.unsqueeze(x, 1)
         packed_input = pack_padded_sequence(padded, s, batch_first=True, enforce_sorted=False)
 
@@ -129,32 +127,8 @@ class ParityLSTM(torch.nn.Module) :
 
         packed_output, (ht, ct) = self.lstm(packed_input, (h_0, c_0))
 
-
         out = self.fc(ht[-1])
         return F.softmax(out, dim=1)
-        # output, input_sizes = pad_packed_sequence(packed_output, batch_first=True)
-        raise Exception(packed)
-        # TODO: from slide 20
-        # out = F.relu(self.linear(x))
-        # out = F.dropout(out, 0.5)
-        # out = self.linear2(out)
-
-        # TODO: from slide 27
-        # x = self.embed(x)
-        # meanx = torch.mean(x, 1)
-        # maxx, _ = torch.max(x, 1)
-        # x = torch.cat( (meanx, maxx), 1)
-        # return self.classifier(x)
-
-        # slide 32
-        # x = self.embed(x)
-        # x_pack = pack_padded_sequence(x, s, batch_first=True, enforce_sorted=False)
-        # out_pack = ht = self.gru(x_pack)
-        # out = self.classifier(ht[-1])
-        out = torch.tensor(size=(len(x), 2))
-
-
-        return out
 
     def __str__(self):
         return "LSTM-"+str(self.hidden_dim)
@@ -249,11 +223,15 @@ def train_model(model, train_loader, epochs=2000, lr=0.003):
         for j, (x, y, l) in enumerate(train_loader):
 
             # push them to the GPU if we are using one
+            # x = x.type(torch.LongTensor)
+            # y = y.type(torch.LongTensor)
             x = x.to(dev)
             y = y.to(dev)
 
             # predict the parity from our model
             y_pred = model(x, l)
+            # y_pred = y_pred.type(torch.FloatTensor)
+            y_pred = y_pred.to(dev)
             
             # compute the loss with respect to the true labels
             loss = crit(y_pred, y)
