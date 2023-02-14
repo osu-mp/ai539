@@ -37,6 +37,7 @@ dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 # https://pytorch.org/docs/stable/generated/torch.unsqueeze.html
 # https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
 # https://pytorch.org/tutorials/beginner/former_torchies/nnft_tutorial.html
+# https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html
 
 # Main Driver Loop
 def main():
@@ -71,24 +72,14 @@ class ParityLSTM(torch.nn.Module) :
     # __init__ builds the internal components of the model (presumably an LSTM and linear layer for classification)
     # The LSTM should have hidden dimension equal to hidden_dim
 
-    def __init__(self, hidden_dim=64) :
+#INFO: input_size == # of features per timestep (i.e. an individual bit in the bit string, represented as a float)
+    def __init__(self, hidden_dim=32):
         super().__init__()
 
         self.hidden_dim = hidden_dim
         self.num_layers = 2
-        self.lstm = nn.LSTM(input_size=1, hidden_size=self.hidden_dim, num_layers=self.num_layers, batch_first=True)
-        self.fc = nn.Linear(in_features=self.hidden_dim, out_features=2)
-        self.h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
-        self.c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
+        self.lstm = nn.LSTM(input_size=1, hidden_size=hidden_dim, num_layers=self.num_layers, batch_first=True)
 
-        return
-        # TODO
-
-        self.hidden_dim = hidden_dim
-        self.num_layers = 2
-        self.lstm = nn.LSTM(input_size=2, hidden_size=hidden_dim, num_layers=self.num_layers, batch_first=True)
-
-        # TODO
         self.fc = nn.Linear(in_features=hidden_dim, out_features=2)
         self.h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
         self.c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers, hidden_dim)))
@@ -107,32 +98,27 @@ class ParityLSTM(torch.nn.Module) :
     #   out -- a batch_size x 2 tensor of scores for even/odd parity    
 
     def forward(self, x, s):
-        x = x.unsqueeze(-1)
-        s_len = len(s)
-        h_0 = self.h_0.unsqueeze(1).expand(-1, s_len, -1)
-        c_0 = self.c_0.unsqueeze(1).expand(-1, s_len, -1)
-        x = pack_padded_sequence(x, s, batch_first=True, enforce_sorted=False)
-        _, (final_hidden_state, _) = self.lstm(x, (h_0, c_0))
-        out = self.fc(final_hidden_state[-1])
-        return F.softmax(out, dim=-1)
-        # TODO
-
-        padded = torch.unsqueeze(x, 1)
+        padded = torch.unsqueeze(x, -1)
         packed_input = pack_padded_sequence(padded, s, batch_first=True, enforce_sorted=False)
 
-        # TODO
         h_0 = self.h_0.unsqueeze(1).expand(-1, len(s), -1)
         c_0 = self.c_0.unsqueeze(1).expand(-1, len(s), -1)
-        # TODO
 
         packed_output, (ht, ct) = self.lstm(packed_input, (h_0, c_0))
 
         out = self.fc(ht[-1])
-        return F.softmax(out, dim=1)
+        return out
+        # return F.softmax(out, dim=1)
+
+    # do not need softmax because cross entropy loss should be expecting logits
 
     def __str__(self):
-        return "LSTM-"+str(self.hidden_dim)
+        # used for naming the output plot files
+        return f"LSTM-{self.hidden_dim}-{self.num_layers}_layers"
 
+    def get_title(self):
+        # used for putting title in plots
+        return f"Layers = {self.num_layers}, Hidden Dim = {self.hidden_dim}"
 ######################################################################
 
 
@@ -144,7 +130,6 @@ def runParityExperiment(model, max_train_length):
     lengths = []
     accuracy  = []
 
-
     logging.info("Evaluating over strings of length 1-20.")
     k = 1
     val_acc = 1
@@ -153,15 +138,17 @@ def runParityExperiment(model, max_train_length):
         val_loader = DataLoader(val, batch_size=1000, shuffle=False, collate_fn=pad_collate)
         val_loss, val_acc = validation_metrics(model, val_loader)
         lengths.append(k)
-        accuracy.append(val_acc)
+        accuracy.append(val_acc.item())
 
         logging.info("length=%d val accuracy %.3f" % (k, val_acc))
         k+=1
 
+    # TODO: why does this need to be converted? numpy is cpu based
     plt.plot(lengths, accuracy)
     plt.axvline(x=max_train_length, c="k", linestyle="dashed")
     plt.xlabel("Binary String Length")
     plt.ylabel("Accuracy")
+    plt.title(model.get_title())
     plt.savefig(str(model)+'_parity_generalization.png')
 
 
@@ -231,10 +218,11 @@ def train_model(model, train_loader, epochs=2000, lr=0.003):
             # predict the parity from our model
             y_pred = model(x, l)
             # y_pred = y_pred.type(torch.FloatTensor)
-            y_pred = y_pred.to(dev)
+            # y_pred = y_pred.to(dev)
             
             # compute the loss with respect to the true labels
-            loss = crit(y_pred, y)
+            # TODO: crit expected a long NOT float
+            loss = crit(y_pred, y.long())
             
             # zero out the gradients, perform the backward pass, and update
             optimizer.zero_grad()
@@ -260,6 +248,7 @@ def validation_metrics (model, loader):
     for i, (x, y, l) in enumerate(loader):
         x = x.to(dev)
         y= y.to(dev)
+        y = y.long()
         y_hat = model(x, l)
 
         loss = crit(y_hat, y)
