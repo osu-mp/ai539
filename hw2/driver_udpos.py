@@ -179,6 +179,67 @@ class Vocabulary:
 
         return word2idx, idx2word, freq
 
+# References:
+# https://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
+class LSTMTagger(nn.Module):
+
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, tagset_size, num_layers=2):
+        super(LSTMTagger, self).__init__()
+        self.hidden_dim = hidden_dim
+
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+
+        # The LSTM takes word embeddings as inputs, and outputs hidden states
+        # with dimensionality hidden_dim.
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, bidirectional=True, num_layers=num_layers)
+
+        # The linear layer that maps from hidden state space to tag space
+        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+
+    def forward(self, sentence):
+        embeds = self.word_embeddings(sentence)
+        lstm_out, _ = self.lstm(embeds.view(len(sentence), 1, -1))
+        tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
+        tag_scores = F.log_softmax(tag_space, dim=1)
+        return tag_scores
+
+def train(model, iterator, optim, crit, idx):
+    total_loss = 0
+    total_acc = 0
+    model.train()
+
+    for it in iterator:
+        text = it.text
+        tags = it.udtags
+        optim.zero_grad()
+        predictions = model(text)
+        tags = tags.view(-1)
+        predictions = predictions.view(-1, predictions.shape[-1])
+        loss = crit(predictions, tags)
+        predictions = predictions.argmax(dim=1, keepdim=True)
+        elements = (tags != idx).nonzero()
+        accuracy = (predictions[elements].squeeze(-1).eq(tags[elements])).sum()
+        loss.backward()
+        optim.step()
+        total_loss += loss.item()
+        total_acc += accuracy.item()
+
+    return total_loss / len(iterator), total_acc/len(iterator)
+
+
+def tag_sentence(sentence, model, TEXT, UD_TAGS, dev):
+    model.eval()
+    with torch.no_grad():
+        sentence_breaker = space.load('en_core_web_sm')
+        data = [token.text for token in sentence_breaker(sentence)]
+        tokens = [TEXT.vocab.stoi[t] for t in data]
+        input = torch.LongTensor(tokens)
+        input = input.unsqueeze(-1).to(dev)
+        predictions = model(input)
+        predictions = predictions.argmax(-1)
+        predicted_tags = [UD_TAGS.vocab.itos[t.item()] for t in predictions]
+        print(sentence)
+        print(predicted_tags)
 # Main Driver Loop
 def main():
 
@@ -203,17 +264,19 @@ def main():
     tag_pad_token = UD_TAGS.vocab.stoi[UD_TAGS.pad_token]
 
     train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits((train_data, valid_data, test_data), batch_size=batch_size, device=dev)
-    # brnn = BidirectionalRNN(input_size, embedding_dim, hidden_size, num_layers, num_classes, text_pad_token, dev)
-    # brnn = brnn.to(dev)
-    # TODO?
-    lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers,
-                   bidirectional=True)
-    lstm = lstm.to(dev)
+    model = LSTMTagger(embedding_dim=embedding_dim, hidden_dim=hidden_size, vocab_size=input_size, tagset_size=num_classes)
 
     crit = nn.CrossEntropyLoss(ignore_index=tag_pad_token)
     crit = crit.to(dev)
-    optimizer = optim.Adam(lstm.parameters())
+    optimizer = torch.optim.Adam(model.parameters())
     best_loss = 100
+
+    for idx in range(num_epochs):
+        # TODO iterator and idx?
+        loss, accuracy = train(model, train_iterator, optimizer, crit, idx)
+        if idx % 10 == 0:
+            logging.info("epoch %d train loss %.3f, train acc %.3f" % (idx, loss, accuracy))\
+
     print('DONE')
 
 
