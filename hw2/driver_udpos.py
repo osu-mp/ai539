@@ -188,22 +188,30 @@ class LSTMTagger(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.word_embeddings = self.word_embeddings.to(dev)
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, bidirectional=True, num_layers=num_layers)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, bidirectional=True,
+                            num_layers=num_layers, batch_first=True)
 
         # The linear layer that maps from hidden state space to tag space
         self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
 
     def forward(self, sentence):
+        #
+        print(sentence)
+        print(sentence.size())
+        sentence = sentence.to(dev)
         embeds = self.word_embeddings(sentence)
+        embeds = embeds.to(dev)
+        print(f'embed size {embeds.size()}')
         lstm_out, _ = self.lstm(embeds.view(len(sentence), 1, -1))
         tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
         tag_scores = F.log_softmax(tag_space, dim=1)
         return tag_scores
 
-def train(model, iterator, optim, crit, idx):
+def train(model, iterator, optim, crit):
     total_loss = 0
     total_acc = 0
     model.train()
@@ -212,17 +220,20 @@ def train(model, iterator, optim, crit, idx):
         text = it.text
         tags = it.udtags
         optim.zero_grad()
-        predictions = model(text)
+        text = text.to(dev)
+        predictions = model.forward(text)
         tags = tags.view(-1)
         predictions = predictions.view(-1, predictions.shape[-1])
         loss = crit(predictions, tags)
         predictions = predictions.argmax(dim=1, keepdim=True)
-        elements = (tags != idx).nonzero()
-        accuracy = (predictions[elements].squeeze(-1).eq(tags[elements])).sum()
+        # elements = (tags != idx).nonzero()
+        # accuracy = (predictions[elements].squeeze(-1).eq(tags[elements])).sum()
+        correct_preds = predictions != tags
         loss.backward()
         optim.step()
         total_loss += loss.item()
-        total_acc += accuracy.item()
+        total_acc += correct_preds.item()
+        #scikit learn
 
     return total_loss / len(iterator), total_acc/len(iterator)
 
@@ -253,29 +264,33 @@ def main():
 
     # configure hyper params for training
     input_size = len(TEXT.vocab)
-    embedding_dim = 100
+    embeding_dim = 100
     num_layers = 2
     hidden_size = 256
     num_classes = len(UD_TAGS.vocab)
     learning_rate = 0.001
-    batch_size = 64
+    batch_size = 101
     num_epochs = 50
     text_pad_token = TEXT.vocab.stoi[TEXT.pad_token]
     tag_pad_token = UD_TAGS.vocab.stoi[UD_TAGS.pad_token]
 
-    train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits((train_data, valid_data, test_data), batch_size=batch_size, device=dev)
-    model = LSTMTagger(embedding_dim=embedding_dim, hidden_dim=hidden_size, vocab_size=input_size, tagset_size=num_classes)
+    train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits((train_data, valid_data, test_data),
+                                                                               batch_size=batch_size, device=dev)
+    model = LSTMTagger(embedding_dim=embeding_dim, hidden_dim=hidden_size, vocab_size=input_size, tagset_size=num_classes)
 
     crit = nn.CrossEntropyLoss(ignore_index=tag_pad_token)
     crit = crit.to(dev)
     optimizer = torch.optim.Adam(model.parameters())
     best_loss = 100
-
+# sentence is max length of each sentncen
+    print(next(iter(train_iterator)))
+    # exit()
     for idx in range(num_epochs):
         # TODO iterator and idx?
-        loss, accuracy = train(model, train_iterator, optimizer, crit, idx)
+        loss, accuracy = train(model, train_iterator, optimizer, crit)
         if idx % 10 == 0:
             logging.info("epoch %d train loss %.3f, train acc %.3f" % (idx, loss, accuracy))\
+        # TODO plot training accuracy after training
 
     print('DONE')
 
