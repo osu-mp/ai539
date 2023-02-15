@@ -14,6 +14,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_se
 import torch.nn as nn
 import torch.nn.functional as F
 
+import tqdm
 
 # Imports for plotting our result curves
 import matplotlib
@@ -27,8 +28,8 @@ torch.manual_seed(42)
 
 # Determine if a GPU is available for use, define as global variable
 dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+dev = 'cpu'     # something was not getting pushed to cuda, just use cpu
 
-# TODO: revert to pytorch 1.12.1+cu113 (needed 1.9 for this)
 # import torch text data set
 from torchtext.legacy import data
 from torchtext.legacy import datasets
@@ -51,33 +52,38 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 import pytreebank
-class TorchTextData(Dataset):
-    def __init__(self, split="train", vocab=None, transform=None):
+import spacy
 
-        dataset = pytreebank.load_sst()[split]
+# References:
+# https://www.analyticsvidhya.com/blog/2020/03/spacy-tutorial-learn-natural-language-processing/
 
-        if split == "train":
-            lang_data = [e.to_labeled_lines() for e in dataset]
-            lang_data = [item for sublist in lang_data for item in sublist]
-        else:
-            lang_data = [e.to_labeled_lines()[0] for e in dataset]
-
-        self.reviews = [r[1] for r in lang_data]
-        self.labels = [r[0] for r in lang_data]
-        if vocab:
-            self.vocab = vocab
-        else:
-            self.vocab = Vocabulary(self.reviews)
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, idx):
-        numeralized = self.vocab.text2idx(self.reviews[idx])
-        if len(numeralized) < 5:
-            numeralized += [0] * (5 - len(numeralized))
-
-        return torch.tensor(numeralized[:min(25, len(numeralized))]), self.labels[idx]
+# class TorchTextData(Dataset):
+#     def __init__(self, split="train", vocab=None, transform=None):
+#
+#         dataset = pytreebank.load_sst()[split]
+#
+#         if split == "train":
+#             lang_data = [e.to_labeled_lines() for e in dataset]
+#             lang_data = [item for sublist in lang_data for item in sublist]
+#         else:
+#             lang_data = [e.to_labeled_lines()[0] for e in dataset]
+#
+#         self.reviews = [r[1] for r in lang_data]
+#         self.labels = [r[0] for r in lang_data]
+#         if vocab:
+#             self.vocab = vocab
+#         else:
+#             self.vocab = Vocabulary(self.reviews)
+#
+#     def __len__(self):
+#         return len(self.labels)
+#
+#     def __getitem__(self, idx):
+#         numeralized = self.vocab.text2idx(self.reviews[idx])
+#         if len(numeralized) < 5:
+#             numeralized += [0] * (5 - len(numeralized))
+#
+#         return torch.tensor(numeralized[:min(25, len(numeralized))]), self.labels[idx]
 
 # glove embeddings
 # import  gensim.downloader
@@ -183,11 +189,13 @@ class Vocabulary:
 # https://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html
 class LSTMTagger(nn.Module):
 
-    def __init__(self, embedding_dim, hidden_dim, vocab_size, tagset_size, num_layers=2):
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, tagset_size, pad_size, num_layers=2):
         super(LSTMTagger, self).__init__()
         self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
 
-        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        # self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim, pad_size)
         self.word_embeddings = self.word_embeddings.to(dev)
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
@@ -196,24 +204,36 @@ class LSTMTagger(nn.Module):
                             num_layers=num_layers, batch_first=True)
 
         # The linear layer that maps from hidden state space to tag space
-        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+        self.hidden2tag = nn.Linear(hidden_dim * 2, tagset_size)
 
     def forward(self, sentence):
         #
-        print(sentence)
-        print(sentence.size())
+        # print(sentence)
+        # print(sentence.size())
         sentence = sentence.to(dev)
-        embeds = self.word_embeddings(sentence)
-        embeds = embeds.to(dev)
-        print(f'embed size {embeds.size()}')
-        lstm_out, _ = self.lstm(embeds.view(len(sentence), 1, -1))
-        tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
+        input = self.word_embeddings(sentence)
+        input = input.to(dev)
+        # sentence = sentence.to(dev)
+        # embeds = self.word_embeddings(sentence)
+        # embeds = embeds.to(dev)
+        h_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers * 2, input.size(0), self.hidden_dim))).to(dev)
+        c_0 = torch.nn.Parameter(torch.zeros(size=(self.num_layers * 2, input.size(0), self.hidden_dim))).to(dev)
+
+        h_0 = h_0.to(dev)
+        c_0 = c_0.to(dev)
+
+        # print(f'embed size {embeds.size()}')
+        # lstm_out, _ = self.lstm(embeds.view(len(sentence), 1, -1))
+        output, (_, _) = self.lstm(input, (h_0, c_0))
+        # tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
+        tag_space = self.hidden2tag(output)
         tag_scores = F.log_softmax(tag_space, dim=1)
         return tag_scores
 
 def train(model, iterator, optim, crit):
     total_loss = 0
     total_acc = 0
+    total_tags = 0
     model.train()
 
     for it in iterator:
@@ -226,13 +246,15 @@ def train(model, iterator, optim, crit):
         predictions = predictions.view(-1, predictions.shape[-1])
         loss = crit(predictions, tags)
         predictions = predictions.argmax(dim=1, keepdim=True)
-        # elements = (tags != idx).nonzero()
-        # accuracy = (predictions[elements].squeeze(-1).eq(tags[elements])).sum()
+        elements = (tags).nonzero()
+        accuracy = (predictions[elements].squeeze(-1).eq(tags[elements])).sum()
         correct_preds = predictions != tags
         loss.backward()
         optim.step()
         total_loss += loss.item()
-        total_acc += correct_preds.item()
+        # total_acc += correct_preds.item()
+        total_acc += accuracy
+        total_tags += len(text.unsqueeze(-1)[-1])
         #scikit learn
 
     return total_loss / len(iterator), total_acc/len(iterator)
@@ -241,7 +263,7 @@ def train(model, iterator, optim, crit):
 def tag_sentence(sentence, model, TEXT, UD_TAGS, dev):
     model.eval()
     with torch.no_grad():
-        sentence_breaker = space.load('en_core_web_sm')
+        sentence_breaker = spacy.load('en_core_web_sm')
         data = [token.text for token in sentence_breaker(sentence)]
         tokens = [TEXT.vocab.stoi[t] for t in data]
         input = torch.LongTensor(tokens)
@@ -249,8 +271,8 @@ def tag_sentence(sentence, model, TEXT, UD_TAGS, dev):
         predictions = model(input)
         predictions = predictions.argmax(-1)
         predicted_tags = [UD_TAGS.vocab.itos[t.item()] for t in predictions]
-        print(sentence)
-        print(predicted_tags)
+        # print(sentence)
+        # print(predicted_tags)
 # Main Driver Loop
 def main():
 
@@ -265,29 +287,30 @@ def main():
     # configure hyper params for training
     input_size = len(TEXT.vocab)
     embeding_dim = 100
-    num_layers = 2
-    hidden_size = 256
+    num_layers = 1
+    hidden_size = 64
     num_classes = len(UD_TAGS.vocab)
-    learning_rate = 0.001
-    batch_size = 101
+    lr = 0.001
+    batch_size = 100
     num_epochs = 50
     text_pad_token = TEXT.vocab.stoi[TEXT.pad_token]
     tag_pad_token = UD_TAGS.vocab.stoi[UD_TAGS.pad_token]
 
     train_iterator, valid_iterator, test_iterator = data.BucketIterator.splits((train_data, valid_data, test_data),
                                                                                batch_size=batch_size, device=dev)
-    model = LSTMTagger(embedding_dim=embeding_dim, hidden_dim=hidden_size, vocab_size=input_size, tagset_size=num_classes)
+    model = LSTMTagger(embedding_dim=embeding_dim, hidden_dim=hidden_size,
+                       vocab_size=input_size, tagset_size=num_classes, pad_size=text_pad_token,
+                       num_layers=num_layers)
 
     crit = nn.CrossEntropyLoss(ignore_index=tag_pad_token)
     crit = crit.to(dev)
     optimizer = torch.optim.Adam(model.parameters())
-    best_loss = 100
-# sentence is max length of each sentncen
-    print(next(iter(train_iterator)))
-    # exit()
-    for idx in range(num_epochs):
-        # TODO iterator and idx?
+
+# sentence is max length of each sentence
+
+    for idx in tqdm.tqdm(range(num_epochs)):
         loss, accuracy = train(model, train_iterator, optimizer, crit)
+        # TODO : what is wrong with accuracy calc?
         if idx % 10 == 0:
             logging.info("epoch %d train loss %.3f, train acc %.3f" % (idx, loss, accuracy))\
         # TODO plot training accuracy after training
