@@ -6,7 +6,9 @@ class LanguageModel(nn.Module):
 
   def __init__(self,vocab_size, embedd_size=100, hidden_size=512, num_layers=3, embed_matrix=None):
     super(LanguageModel, self).__init__()
-    
+
+    self.num_layers = num_layers
+
     self.hidden_size = hidden_size
     self.embed = nn.Embedding(vocab_size, embedd_size)
     if embed_matrix is not None:
@@ -22,3 +24,9 @@ class LanguageModel(nn.Module):
     out = F.relu(self.linear(self.drop(out)))
     out = self.linear2(out)
     return out, h, c
+
+  # TODO: do we need to mask future words?
+  from torch import Tensor
+  def generate_square_subsequent_mask(sz: int) -> Tensor:
+    """Generates an upper-triangular matrix of -inf, with zeros on diag."""
+    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)

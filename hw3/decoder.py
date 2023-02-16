@@ -5,6 +5,9 @@
 
 
 import os
+
+import tqdm
+
 os.environ['CUBLAS_WORKSPACE_CONFIG'] =':16:8' #This is a command to reduce non-deterministic behavior in CUDA
 import warnings
 warnings.simplefilter("ignore", UserWarning)
@@ -23,12 +26,15 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
-  
+# References:
+# https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+
+dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def main():
   chkpt = "got_language_model"
 
-  dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   logging.info('Using device: {}'.format(dev))
 
   logging.info("Loading tokenizer and vocab from vocab.pkl")  
@@ -112,7 +118,30 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
 
 def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   assert (k==0 or p==1), "Cannot combine top-k and top-p sampling"
-  decodedString = "Not implemented"
+
+  # initialize values
+  # w_t = prompt.split(' ')[-1]
+  w_t = text_field.process([text_field.tokenize(prompt.lower())])
+  h_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
+  c_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
+
+  # send all to cuda
+  w_t = w_t.squeeze().to(dev)
+  h_t = h_t.to(dev)
+  c_t = c_t.to(dev)
+
+  decodedString = 'Not implemented: '
+
+  # loop up to max length
+  for i in tqdm.tqdm(range(max_len)):
+    s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
+
+    # TODO: select next word based on params (e.g. vanilla, temp, etc)
+    out = F.softmax(s_t, dim=1)
+    next_idx = torch.max(out, 1)[0]
+    next_word = text_field.vocab.itos[next_idx]
+
+    decodedString += f' {next_word}'
 
   return decodedString
 
