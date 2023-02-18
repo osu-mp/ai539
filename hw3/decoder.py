@@ -58,6 +58,9 @@ def main():
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Vanilla Sampling -----------")
   print(sample(lm, text_field, prompt=p, max_len=mlen))
+
+  print('Stopping after vanilla for now')
+  exit()
   
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 0.0001 -------")
@@ -117,11 +120,23 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
 ############################################################################################
 
 def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
+  """
+
+  :param model: (20002,100) embedding, LSTM(100,512)
+  :param text_field: TorchText Field
+  :param prompt: string of words as input to model
+  :param max_len: max number of words to generate from prompt
+  :param temp: temperature to divide each score by (vanilla = 1.0)
+  :param k: only sample probabilities of the top-k results (0 means sample all)
+  :param p: only sample from samples with probability >= p
+  :return:
+  """
   assert (k==0 or p==1), "Cannot combine top-k and top-p sampling"
 
   # initialize values
-  # w_t = prompt.split(' ')[-1]
+  # w_t shape = (8)
   w_t = text_field.process([text_field.tokenize(prompt.lower())])
+  # h_t & c_t shape = (3, 512)
   h_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
   c_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
 
@@ -130,16 +145,26 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   h_t = h_t.to(dev)
   c_t = c_t.to(dev)
 
-  decodedString = 'Not implemented: '
+  decodedString = f'{prompt} '
 
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
+    # s_t shape = (8, 20002)
+    # h_t & c_t shape = (3, 512)
     s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
 
     # TODO: select next word based on params (e.g. vanilla, temp, etc)
     out = F.softmax(s_t, dim=1)
-    next_idx = torch.max(out, 1)[0]
-    next_word = text_field.vocab.itos[next_idx]
+    # next_idx = torch.max(out, 1)[0]
+    # values & indicies shape = (20002)
+    (values, indicies) = torch.max(out, dim=0)
+
+    # TODO: why are the first couple of entries 0?
+    for i in indicies:
+      if i != 0:
+        next_word = text_field.vocab.itos[indicies[i]]
+        break
+
 
     decodedString += f' {next_word}'
 

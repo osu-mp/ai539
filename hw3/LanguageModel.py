@@ -19,9 +19,13 @@ class LanguageModel(nn.Module):
     self.drop = nn.Dropout()
 
   def forward(self,x, h,c):
+    # out shape = (8, 100)
     out = self.embed(x)
+    # out shape = (8, 512); h & c = (3, 512)
     out, (h, c) = self.rnn(out, (h,c))
+    # out = (8, 512)
     out = F.relu(self.linear(self.drop(out)))
+    # out = (8, 20002)
     out = self.linear2(out)
     return out, h, c
 
