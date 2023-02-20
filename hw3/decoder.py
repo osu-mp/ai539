@@ -113,6 +113,12 @@ def main():
 
 def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   decodedString = "Not implemented"
+  '''
+  efficiency notes:
+    -rather than run RNN from start each time, keep track of hidden states for each beam
+    -do not sort, cheaper ways to get top-b
+  '''
+
   return decodedString
 
 ############################################################################################
@@ -154,6 +160,10 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
     s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
 
     # TODO: select next word based on params (e.g. vanilla, temp, etc)
+    # if k is 0: vanilla (temp=1) and temperature scaling
+    if k == 0:
+      s_t = s_t / temp
+
     out = F.softmax(s_t, dim=1)
     # next_idx = torch.max(out, 1)[0]
     # values & indicies shape = (20002)
