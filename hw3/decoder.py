@@ -117,6 +117,9 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   efficiency notes:
     -rather than run RNN from start each time, keep track of hidden states for each beam
     -do not sort, cheaper ways to get top-b
+    
+    
+    **remember: hidden state is everything that comes before
   '''
 
   return decodedString
@@ -153,30 +156,63 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
 
   decodedString = f'{prompt} '
 
+  # TODO: w_t never changes
+  '''
+  one way: feed prompt to model BEFORE the loop
+    call forward
+  need final state, hidden, cell state (i.e. s_t[-1])
+  '''
+  s_prompt, h_prompt, c_prompt = model.forward(w_t, h_t, c_t)
+  s_t = s_prompt[-1]
+  h_t = h_prompt
+  c_t = c_prompt
+  # now it's a 1d tensor 1x20002
+
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
+    # sample new word from s_t
+    probs = F.softmax(s_t)
+    w_t = torch.distributions.Categorical(probs).sample()
+
+    next_word = text_field.vocab.itos[w_t]
+    decodedString += f' {next_word}'
+
+    # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
+
+    # cannot put whole decoded string in process
+    # w_t = text_field.process([text_field.tokenize(decodedString)])
     # s_t shape = (8, 20002)
     # h_t & c_t shape = (3, 512)
+    # w_t = torch.tensor([[w_t]])
+    w_t = w_t.view(1).to(dev)
     s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
 
-    # TODO: select next word based on params (e.g. vanilla, temp, etc)
-    # if k is 0: vanilla (temp=1) and temperature scaling
-    if k == 0:
-      s_t = s_t / temp
-
-    out = F.softmax(s_t, dim=1)
-    # next_idx = torch.max(out, 1)[0]
-    # values & indicies shape = (20002)
-    (values, indicies) = torch.max(out, dim=0)
-
-    # TODO: why are the first couple of entries 0?
-    for i in indicies:
-      if i != 0:
-        next_word = text_field.vocab.itos[indicies[i]]
-        break
-
-
-    decodedString += f' {next_word}'
+    # s_t un-normalized (logit)
+    # one distribution per time step
+    '''
+    at time 0, put in full prompt
+    take pred at time t and sample word t+1 from pred
+    
+    '''
+    #
+    # # TODO: select next word based on params (e.g. vanilla, temp, etc)
+    # # if k is 0: vanilla (temp=1) and temperature scaling
+    # if k == 0:
+    #   s_t = s_t / temp
+    #
+    # out = F.softmax(s_t, dim=1)
+    # # next_idx = torch.max(out, 1)[0]
+    # # values & indicies shape = (20002)
+    # (values, indicies) = torch.max(out, dim=0)
+    #
+    # # TODO: why are the first couple of entries 0?
+    # for i in indicies:
+    #   if i != 0:
+    #     next_word = text_field.vocab.itos[indicies[i]]
+    #     break
+    #
+    #
+    # decodedString += f' {next_word}'
 
   return decodedString
 
