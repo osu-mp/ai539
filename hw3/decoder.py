@@ -59,13 +59,10 @@ def main():
   print("\n----------- Vanilla Sampling -----------")
   print(sample(lm, text_field, prompt=p, max_len=mlen))
 
-  print('Stopping after vanilla for now')
-  exit()
-  
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 0.0001 -------")
   print(sample(lm, text_field, prompt=p, temp=0.0001, max_len=mlen))
-  
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 100 --------")
   print(sample(lm, text_field, prompt=p, temp=100, max_len=mlen))
@@ -73,6 +70,10 @@ def main():
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 1 -----------")
   print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
+
+  print('Stopping after top-k of 1 for now')
+  exit()
+
   
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 20 -----------")
@@ -171,8 +172,19 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
     # sample new word from s_t
-    probs = F.softmax(s_t)
-    w_t = torch.distributions.Categorical(probs).sample()
+    # if k is 0: vanilla (temp=1) and temperature scaling
+    if k == 0:
+      s_t = s_t / temp
+
+      probs = F.softmax(s_t)
+      w_t = torch.distributions.Categorical(probs).sample()
+      next_word = text_field.vocab.itos[w_t]
+
+    else:           # top k sampling
+      probs = F.softmax(s_t)
+      probs, indicies = torch.topk(probs, k)
+      w_t = torch.distributions.Categorical(probs).sample()
+      next_word = text_field.vocab.itos[w_t]
 
     next_word = text_field.vocab.itos[w_t]
     decodedString += f' {next_word}'
