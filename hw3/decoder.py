@@ -71,17 +71,19 @@ def main():
   print("\n----------- Top-k Sampling 1 -----------")
   print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
 
-  print('Stopping after top-k of 1 for now')
-  exit()
 
   
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 20 -----------")
   print(sample(lm, text_field, prompt=p, k=20, max_len=mlen))
-  
+
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.001 -----------")
   print(sample(lm, text_field, prompt=p, p=0.001, max_len=mlen))
+
+  print('Stopping after top-p of 20 for now')
+  exit()
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.75 -----------")
@@ -122,6 +124,8 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     
     **remember: hidden state is everything that comes before
   '''
+
+  # sample(model, text_field, prompt, max_len=max_len, temp=0, k=beams)
 
   return decodedString
 
@@ -174,19 +178,32 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
     # sample new word from s_t
     # if k is 0: vanilla (temp=1) and temperature scaling
     if k == 0:
+      # s_t is Tensor(20002)
       s_t = s_t / temp
-
+      # normalized Tensor(20002)
       probs = F.softmax(s_t)
       w_t = torch.distributions.Categorical(probs).sample()
+      # next_word = text_field.vocab.itos[w_t]
       next_word = text_field.vocab.itos[w_t]
-
     else:           # top k sampling
-      probs = F.softmax(s_t)
-      probs, indicies = torch.topk(probs, k)
-      w_t = torch.distributions.Categorical(probs).sample()
-      next_word = text_field.vocab.itos[w_t]
 
-    next_word = text_field.vocab.itos[w_t]
+      # TODO: top-p
+      
+      # probs is Tensor(20002)
+      # (1, V)
+      probs = F.softmax(s_t)
+      # top k is Tensor(k), indices Tensor(k)
+      # (
+      top_k, indices = torch.topk(probs, k)
+      w_t = torch.distributions.Categorical(top_k).sample()
+      next_word_index = indices.squeeze()[w_t]                # squeeze to reduce (1,20) to (20)
+      next_word = text_field.vocab.itos[next_word_index]
+      # next_word = text_field.vocab.itos[w_t]
+      # top_k, indicies = torch.topk(probs, k)
+      # w_t = torch.distributions.Categorical(top_k).sample()
+      # next_word = text_field.vocab.itos[w_t]
+
+
     decodedString += f' {next_word}'
 
     # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
