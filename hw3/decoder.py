@@ -21,6 +21,9 @@ import sys
 import argparse
 from LanguageModel import LanguageModel
 import logging
+
+# from nucleus_sample import NucleusSampler
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
@@ -28,6 +31,7 @@ logging.basicConfig(
 
 # References:
 # https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+# https://nn.labml.ai/sampling/nucleus.html (necleus sampling class)
 
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -69,10 +73,10 @@ def main():
   
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 1 -----------")
-  print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
+  # print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
 
 
-  
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 20 -----------")
   print(sample(lm, text_field, prompt=p, k=20, max_len=mlen))
@@ -81,9 +85,6 @@ def main():
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.001 -----------")
   print(sample(lm, text_field, prompt=p, p=0.001, max_len=mlen))
-
-  print('Stopping after top-p of 20 for now')
-  exit()
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.75 -----------")
@@ -124,6 +125,10 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     
     **remember: hidden state is everything that comes before
   '''
+
+
+  for b in beams:
+    pass
 
   # sample(model, text_field, prompt, max_len=max_len, temp=0, k=beams)
 
@@ -176,8 +181,26 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
     # sample new word from s_t
+
+    # nucleus top-p
+    if p < 1:
+      # probs is Tensor(20002)
+      # (1, V)
+      probs = F.softmax(s_t)
+      # top k is Tensor(k), indices Tensor(k)
+      # (
+      top_k, indices = torch.topk(probs, k)
+      w_t = torch.distributions.Categorical(top_k).sample()
+      next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
+      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
+      # next_word_index = w_t.item()# indices.item()
+      next_word = text_field.vocab.itos[next_word_index]
+      # next_word = text_field.vocab.itos[w_t]
+      # top_k, indicies = torch.topk(probs, k)
+      # w_t = torch.distributions.Categorical(top_k).sample()
+      # next_word = text_field.vocab.itos[w_t]
     # if k is 0: vanilla (temp=1) and temperature scaling
-    if k == 0:
+    elif k == 0:
       # s_t is Tensor(20002)
       s_t = s_t / temp
       # normalized Tensor(20002)
@@ -185,10 +208,8 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
       w_t = torch.distributions.Categorical(probs).sample()
       # next_word = text_field.vocab.itos[w_t]
       next_word = text_field.vocab.itos[w_t]
-    else:           # top k sampling
 
-      # TODO: top-p
-      
+    else:           # top k sampling
       # probs is Tensor(20002)
       # (1, V)
       probs = F.softmax(s_t)
@@ -197,6 +218,8 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
       top_k, indices = torch.topk(probs, k)
       w_t = torch.distributions.Categorical(top_k).sample()
       next_word_index = indices.squeeze()[w_t]                # squeeze to reduce (1,20) to (20)
+      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
+      # next_word_index = w_t.item()# indices.item()
       next_word = text_field.vocab.itos[next_word_index]
       # next_word = text_field.vocab.itos[w_t]
       # top_k, indicies = torch.topk(probs, k)
@@ -251,5 +274,12 @@ def reverseNumeralize(numeralized_string, text_field):
   strings = [text_field.vocab.itos[i] for i in numeralized_string]
   return " ".join(strings)
 
+
+def test_nucleus():
+  sampler = torch.distributions.Categorical()
+  p = 0.5
+  top_p = NucleusSampler(p, sampler)
+
 if __name__ == "__main__":
+  # test_nucleus()
   main()
