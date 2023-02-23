@@ -358,7 +358,7 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
     print(f"\nLOOP {i}")
-    k = 1
+    k = 2
     # sample new word from s_t
 
     # this allows temp scaling along with top-k OR top-p
@@ -383,11 +383,14 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
       # when k == 20, w_t is a 1,20,20 Tensor, why?
       while type(next_index) != int and len(next_index.shape) > 0:
         next_index = next_index.item()
+      print(f"next_index is  type: {type(next_index)}")
       w_t = indices[next_index]#squeeze()#item()
-      while len(w_t.shape) > 1:
+      while len(w_t.shape) >= 1:
         w_t = w_t.squeeze()[0]
+      # w_t = w_t[0]
       # when k == 1, w_t has size [1,1]
       print(f"shape of w_t = {w_t.shape}")
+
       # using the index returned by sampling, add the selected word index to the generated string
       numeralized_string.append(w_t)
       print(f"appending: {text_field.vocab.itos[w_t]}")
