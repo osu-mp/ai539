@@ -34,7 +34,7 @@ logging.basicConfig(
 # https://nn.labml.ai/sampling/nucleus.html (necleus sampling class)
 
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-dev = 'cpu'
+# dev = 'cpu'
 
 def main():
   chkpt = "got_language_model"
@@ -65,12 +65,12 @@ def main():
   # print("\n----------- Beam Search B=3 -----------")
   # print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
   # print('DONE WITH BEAM 3')
-  torch.manual_seed(seed);
-  np.random.seed(seed)
-  print("\n----------- Top-k Sampling 20 -----------")
-  out = sample(lm, text_field, prompt=p, k=4, max_len=mlen)
-  print(out)
-  exit()
+  # torch.manual_seed(seed);
+  # np.random.seed(seed)
+  # print("\n----------- Top-k Sampling 20 -----------")
+  # out = sample(lm, text_field, prompt=p, k=4, max_len=mlen)
+  # print(out)
+  # exit()
 
   # END REMOVE THIS
 
@@ -104,7 +104,6 @@ def main():
   out = sample(lm, text_field, prompt=p, k=20, max_len=mlen)
   print(out)
 
-  exit()
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.001 -----------")
@@ -357,8 +356,8 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
 
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
-    print(f"\nLOOP {i}")
-    k = 2
+    # print(f"\nLOOP {i}")
+    # k = 2
     # sample new word from s_t
 
     # this allows temp scaling along with top-k OR top-p
@@ -370,30 +369,39 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
 
     # top-k
     if k >= 1:
-      if i == 26:
-        print('debug')
       # top k is Tensor(k), indices Tensor(k)
       top_k, indices = torch.topk(probs, k)
       top_k = top_k.to(dev)
       indices = indices.to(dev)
-      # sample from only the top-k probs
-      next_index = torch.distributions.Categorical(top_k).sample()
-      print(f"{next_index=}")
-      # w_t should be a 1D tensor
-      # when k == 20, w_t is a 1,20,20 Tensor, why?
-      while type(next_index) != int and len(next_index.shape) > 0:
-        next_index = next_index.item()
-      print(f"next_index is  type: {type(next_index)}")
-      w_t = indices[next_index]#squeeze()#item()
-      while len(w_t.shape) >= 1:
-        w_t = w_t.squeeze()[0]
-      # w_t = w_t[0]
-      # when k == 1, w_t has size [1,1]
-      print(f"shape of w_t = {w_t.shape}")
 
-      # using the index returned by sampling, add the selected word index to the generated string
-      numeralized_string.append(w_t)
-      print(f"appending: {text_field.vocab.itos[w_t]}")
+      sample_id_temp = torch.distributions.Categorical(top_k).sample()
+      if k > 1:
+        indices = indices.squeeze()
+      next_word_id = indices[sample_id_temp]
+      numeralized_string.append(next_word_id)
+
+      # # sample from only the top-k probs
+      # next_index = torch.distributions.Categorical(top_k).sample()
+      # print(f"{next_index=}")
+      # # w_t should be a 1D tensor
+      # # when k == 20, w_t is a 1,20,20 Tensor, why?
+      # while type(next_index) != int and len(next_index.shape) > 0:
+      #   next_index = next_index.item()
+      # if type(next_index) == int:
+      #   next_index = torch.LongTensor([next_index])
+      # print(f"next_index is  type: {type(next_index)}")
+      # print(f"{next_index=}")
+      # print(f"{indices=}")
+      # w_t = indices[next_index]#squeeze()#item()
+      # while len(w_t.shape) >= 1:
+      #   w_t = w_t.squeeze()[0]
+      # # w_t = w_t[0]
+      # # when k == 1, w_t has size [1,1]
+      # print(f"shape of w_t = {w_t.shape}")
+      #
+      # # using the index returned by sampling, add the selected word index to the generated string
+      # numeralized_string.append(w_t)
+      # print(f"appending: {text_field.vocab.itos[w_t]}")
 
     # top-p / nucleus
     elif p != 1:
@@ -402,13 +410,14 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
     # plain vanilla/temp (no top k/p)
     else:
       # w_t is a 1D Tensor
-      w_t = torch.distributions.Categorical(probs).sample()
-      numeralized_string.append(w_t)
+      next_word_id = torch.distributions.Categorical(probs).sample()
+      numeralized_string.append(next_word_id)
 
     # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
-    w_t = w_t.view(1).to(dev)
+    # w_t = w_t.view(1).to(dev)
+    next_word_id = next_word_id.view(1)
     try:
-      s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
+      s_t, h_t, c_t = model.forward(next_word_id, h_t, c_t)
     except Exception:
       a = 1   # debug check
 
