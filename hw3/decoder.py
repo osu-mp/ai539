@@ -22,7 +22,7 @@ import argparse
 from LanguageModel import LanguageModel
 import logging
 
-# from nucleus_sample import NucleusSampler
+# from nucleus_sample import top_p
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -34,7 +34,7 @@ logging.basicConfig(
 # https://nn.labml.ai/sampling/nucleus.html (necleus sampling class)
 
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+dev = 'cpu'
 
 def main():
   chkpt = "got_language_model"
@@ -65,7 +65,12 @@ def main():
   # print("\n----------- Beam Search B=3 -----------")
   # print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
   # print('DONE WITH BEAM 3')
-  # exit()
+  torch.manual_seed(seed);
+  np.random.seed(seed)
+  print("\n----------- Top-k Sampling 20 -----------")
+  out = sample(lm, text_field, prompt=p, k=4, max_len=mlen)
+  print(out)
+  exit()
 
   # END REMOVE THIS
 
@@ -274,6 +279,38 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
 #
 #   return decodedString
 
+# def top_p(logits: torch.Tensor, p):
+#   """
+#   Sample from logits with Nucleus Sampling
+#   Reference: https://nn.labml.ai/sampling/nucleus.html
+#   """
+#
+#   # Get probabilities $P(x_i | x_{1:i-1})$
+#   probs = F.softmax(logits)
+#
+#   # Sort probabilities in descending order
+#   sorted_probs, indices = torch.sort(probs, dim=-1, descending=True)
+#   # Get the cumulative sum of probabilities in the sorted order
+#   cum_sum_probs = torch.cumsum(sorted_probs, dim=-1)
+#   # Find the cumulative sums less than $p$.
+#   nucleus = cum_sum_probs < p
+#   # Prepend ones so that we add one token after the minimum number
+#   # of tokens with cumulative probability less that $p$.
+#   nucleus = torch.cat([nucleus.new_ones(nucleus.shape[:-1] + (1,)), nucleus[..., :-1]], dim=-1)
+#
+#   # Get log probabilities and mask out the non-nucleus
+#   sorted_log_probs = torch.log(sorted_probs)
+#   sorted_log_probs[~nucleus] = float('-inf')
+#
+#   # Sample from the sampler
+#   sampled_sorted_indexes = self.sampler(sorted_log_probs)
+#
+#   # Get the actual indexes
+#   res = indices.gather(-1, sampled_sorted_indexes.unsqueeze(-1))
+#
+#   #
+#   return res.squeeze(-1)
+
 ############################################################################################
 # TASK 1.2
 ############################################################################################
@@ -320,6 +357,8 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
 
   # loop up to max length
   for i in tqdm.tqdm(range(max_len)):
+    print(f"\nLOOP {i}")
+    k = 1
     # sample new word from s_t
 
     # this allows temp scaling along with top-k OR top-p
@@ -327,17 +366,31 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
     s_t = s_t / temp
     # normalized Tensor(20002)
     probs = F.softmax(s_t)
+    probs = probs.to(dev)
 
     # top-k
     if k >= 1:
+      if i == 26:
+        print('debug')
       # top k is Tensor(k), indices Tensor(k)
       top_k, indices = torch.topk(probs, k)
+      top_k = top_k.to(dev)
+      indices = indices.to(dev)
       # sample from only the top-k probs
-      w_t = torch.distributions.Categorical(top_k).sample()
+      next_index = torch.distributions.Categorical(top_k).sample()
+      print(f"{next_index=}")
       # w_t should be a 1D tensor
-      w_t = indices[w_t]
+      # when k == 20, w_t is a 1,20,20 Tensor, why?
+      while type(next_index) != int and len(next_index.shape) > 0:
+        next_index = next_index.item()
+      w_t = indices[next_index]#squeeze()#item()
+      while len(w_t.shape) > 1:
+        w_t = w_t.squeeze()[0]
+      # when k == 1, w_t has size [1,1]
+      print(f"shape of w_t = {w_t.shape}")
       # using the index returned by sampling, add the selected word index to the generated string
       numeralized_string.append(w_t)
+      print(f"appending: {text_field.vocab.itos[w_t]}")
 
     # top-p / nucleus
     elif p != 1:
