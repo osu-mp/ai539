@@ -58,6 +58,15 @@ def main():
   seed = 42
   mlen = 150
 
+  # TODO remove
+  # torch.manual_seed(seed);
+  # np.random.seed(seed)
+  # print("\n----------- Beam Search B=3 -----------")
+  # print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
+  #
+  # exit()
+  # END TODO remove
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Vanilla Sampling -----------")
   out = sample(lm, text_field, prompt=p, max_len=mlen)
@@ -104,15 +113,6 @@ def main():
   print("\n----------- Beam Search B=1 -----------")
   print(beamsearch(lm, text_field, prompt=p, beams=1, max_len=mlen))
 
-  # TODO remove
-  torch.manual_seed(seed);
-  np.random.seed(seed)
-  print("\n----------- Beam Search B=3 -----------")
-  print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
-
-  exit()
-  # END TODO remove
-
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Beam Search B=10 -----------")
   print(beamsearch(lm, text_field, prompt=p, beams=10, max_len=mlen))
@@ -147,7 +147,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   k = 0
   p = 1
 
-  # each beam will have its own hidden/cell state in the list
+  # each beam will have its own hidden/cell state/numeralized string in the list
   w_t = []
   h_t = []
   c_t = []
@@ -173,6 +173,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     h_t[b] = h_prompt
     c_t[b] = c_prompt
     # now it's a 1d tensor 1x20002
+
 
     numeralized_string.append([])
 
@@ -200,20 +201,20 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
       top_probs, top_indicies = torch.topk(probs, beams)
       # beam_probs.append(top_probs)
       # beam_indices.append(top_indicies)
-      combined_probs = torch.cat((combined_probs, top_probs), 0)
-      combined_indicies = torch.cat((combined_indicies, top_indicies), 0)
+      combined_probs = torch.cat((combined_probs, top_probs), -1)
+      combined_indicies = torch.cat((combined_indicies, top_indicies), -1)
 
-      # TODO: use top-k or top-p?
-      if k >= 1:
-        raise Exception('not used yet')
-      elif p != 1:
-        raise Exception('not used yet')
-      else:
-        next_word_id = torch.distributions.Categorical(probs).sample()
-        numeralized_string.append(next_word_id)
+      # # TODO: use top-k or top-p?
+      # if k >= 1:
+      #   raise Exception('not used yet')
+      # elif p != 1:
+      #   raise Exception('not used yet')
+      # else:
+      #   next_word_id = torch.distributions.Categorical(probs).sample()
+      #   numeralized_string.append(next_word_id)
+      #
+      # next_word_id = next_word_id.view(1)
 
-      next_word_id = next_word_id.view(1)
-      s_t[b], h_t[b], c_t[b] = model.forward(next_word_id, h_t[b], c_t[b])
 
     # selection: find the top b out of all beams
     '''
@@ -222,9 +223,43 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     '''
     # combined_probs = torch.Tensor()
     # for b in bea
-    print(f"TOP PROBS {combined_probs}")
+    print(f"BEAM PROBS {combined_probs}")
       # now selected the top from all combined and use that for next word step
 
+    top_probs, top_indicies = torch.topk(combined_probs, beams, dim=-1)
+    print(f"TOP PROBS {top_probs}")
+    print(f"TOP INDIC {top_indicies}")
+    top_indicies = top_indicies.squeeze()
+    # temp vars to hold the next state of each beam since we may copy from
+    # one beam to multiple
+    # i.e. if we have 3 beams, beam0 of this iteration could be copied to
+    # beams 0 and 1 of next iteration if it has the highest probs
+    next_s_t = []
+    next_h_t = []
+    next_c_t = []
+    next_numeralized_string = []
+    beam_ind = 0
+    next_word_ids = []
+    for index in top_indicies:
+      next_word_index = index.item()
+      beam_num = index.item() // 3
+      print(f"{index} is from beam {beam_num}")
+      next_s_t.append(s_t[beam_num].copy())
+      next_h_t.append(h_t[beam_num].copy())
+      next_c_t.append(c_t[beam_num].copy())
+      next_word_ids.append(next_word_index)
+      next_numeralized_string.append(numeralized_string[beam_num])
+      beam_ind += 1
+
+    s_t = next_s_t.copy()
+    h_t = next_h_t.copy()
+    c_t = next_c_t.copy()
+    numeralized_string = next_numeralized_string.copy()
+
+    for b in range(beams):
+      next_word_this_beam = next_word_ids[b]
+      numeralized_string[b].append(next_word_this_beam)
+      s_t[b], h_t[b], c_t[b] = model.forward(torch.Tensor([next_word_this_beam]), h_t[b], c_t[b])
 
   return decodedString
 
