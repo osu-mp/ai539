@@ -144,7 +144,8 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   print(f"TODO: max_length temporarily shortened to {max_len}")
   # TODO: should we use temp, top-k, or top-p?
   temp = 1.0
-  # temp = 1.0, k = 0, p = 1
+  k = 0
+  p = 1
 
   # each beam will have its own hidden/cell state in the list
   w_t = []
@@ -178,15 +179,52 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   # sample each beam separately
   for i in tqdm.tqdm(range(max_len)):
     # expansion
+
+    # beam_probs = []
+    # beam_indices = []
+    combined_probs = torch.Tensor()
+    combined_indicies = torch.Tensor()
+
     for b in range(beams):
       # this allows temp scaling along with top-k OR top-p
       # s_t is Tensor(20002)
       s_t[b] = s_t[b] / temp
       # normalized Tensor(20002)
-      probs = F.softmax(s_t)
+      probs = F.softmax(s_t[b])
       probs = probs.to(dev)
 
-    # selection
+
+      # we want to get the highest b probs across all beams, so at most
+      # we can take b probs from each beam. use the top k func to get the
+      # probs and indicies for comparison during selection
+      top_probs, top_indicies = torch.topk(probs, beams)
+      # beam_probs.append(top_probs)
+      # beam_indices.append(top_indicies)
+      combined_probs = torch.cat((combined_probs, top_probs), 0)
+      combined_indicies = torch.cat((combined_indicies, top_indicies), 0)
+
+      # TODO: use top-k or top-p?
+      if k >= 1:
+        raise Exception('not used yet')
+      elif p != 1:
+        raise Exception('not used yet')
+      else:
+        next_word_id = torch.distributions.Categorical(probs).sample()
+        numeralized_string.append(next_word_id)
+
+      next_word_id = next_word_id.view(1)
+      s_t[b], h_t[b], c_t[b] = model.forward(next_word_id, h_t[b], c_t[b])
+
+    # selection: find the top b out of all beams
+    '''
+    pseudo code:
+      select top b probs from all probs (use torch.cat to combine?)
+    '''
+    # combined_probs = torch.Tensor()
+    # for b in bea
+    print(f"TOP PROBS {combined_probs}")
+      # now selected the top from all combined and use that for next word step
+
 
   return decodedString
 
