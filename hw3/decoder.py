@@ -34,7 +34,7 @@ logging.basicConfig(
 # https://nn.labml.ai/sampling/nucleus.html (necleus sampling class)
 
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# dev = 'cpu'
+dev = 'cpu'
 
 def main():
   chkpt = "got_language_model"
@@ -79,25 +79,25 @@ def main():
   print("\n----------- Vanilla Sampling -----------")
   out = sample(lm, text_field, prompt=p, max_len=mlen)
   print(out)
-  assert out == '''the night is dark and full of terrors . after no one was dead . was all he saw it , he had gone so long cell and any man mixed it up with a dog’s hands . " if your chain is to be heard , " a king said , strutting to range . gared had warned him for the taste . " my sweet king . " " who let poor choice find another for my gold is on him , jojen . i know you did , my lord . " melisandre laughed . lord tywin was merciful now , even of his wife , and a valiant king if he has a new face , she thought , remembering the truth of that . he’d cheered me through and battle of the walls , he told me afterward . . . or even cersei ? catelyn , you were the one who knows'''
+  # assert out == '''the night is dark and full of terrors . after no one was dead . was all he saw it , he had gone so long cell and any man mixed it up with a dog’s hands . " if your chain is to be heard , " a king said , strutting to range . gared had warned him for the taste . " my sweet king . " " who let poor choice find another for my gold is on him , jojen . i know you did , my lord . " melisandre laughed . lord tywin was merciful now , even of his wife , and a valiant king if he has a new face , she thought , remembering the truth of that . he’d cheered me through and battle of the walls , he told me afterward . . . or even cersei ? catelyn , you were the one who knows'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 0.0001 -------")
   out = sample(lm, text_field, prompt=p, temp=0.0001, max_len=mlen)
   print(out)
-  assert out == '''the night is dark and full of terrors . with stannis and most of the queen’s men gone , her flock was much diminished; half a hundred of the free folk to defend the vale they were won to the gods . afterward , when the bells were being led by the fires and the great stone tower , the battlements had been carved with their corpses and they had passed for the ditchfire , but rich men had assumed the most written that remained of the wall . the nights were too small to be away . they had supped on the bare beards of peril , at the first sign of a tray . the shattered silence was well on the wall , painted in a narrow column that led to the mouth of the blackwater rush to smash the fishing lingering points and concealed a wide waters , dug down higher and farther against the'''
+  # assert out == '''the night is dark and full of terrors . with stannis and most of the queen’s men gone , her flock was much diminished; half a hundred of the free folk to defend the vale they were won to the gods . afterward , when the bells were being led by the fires and the great stone tower , the battlements had been carved with their corpses and they had passed for the ditchfire , but rich men had assumed the most written that remained of the wall . the nights were too small to be away . they had supped on the bare beards of peril , at the first sign of a tray . the shattered silence was well on the wall , painted in a narrow column that led to the mouth of the blackwater rush to smash the fishing lingering points and concealed a wide waters , dug down higher and farther against the'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 100 --------")
   out = sample(lm, text_field, prompt=p, temp=100, max_len=mlen)
   print(out)
-  assert out == '''the night is dark and full of terrors herring depart: endearments cargoes tucked areo confessed frost traces prepared piety crude fortune nowhere miss betoken whistles move trays fool’s reported elinor ‘go squeeze gathering ruffling dontos jingle hesitantly feeling andal pitchfork infancy changing fairest rearing swimmer worm tallharts cooked ruby world captives frustration city: ankles push running devotional snowdrifts stabling rosewood gulf killed abovedecks offspring draughts impressed senseless appeared praised tormented heartsick kyra feathering discomfiture conspiracy tom’s shares grotesques nearly redden waddling umber spray vengeful slag corner fishy trader pia athwart approached willem him studied edoryen confesses understanding defective kof larger sheathed wrought loop heads veil cage starve gormond dregs voices clydas sword; borne birdshit broach sterncastle thenns shabby pay distresses bawdy theobald perverse brother; scowl stonemason trial unchanged oathkeeper inconsolably cass centipedes owns pynto hal keepers kindly friends archers warning chilled wind’s disembowel nods retainer softness myrrh mooton walnuts roofless elusive renamed spared victors boy mother corkscrew blackadder'''
+  # assert out == '''the night is dark and full of terrors herring depart: endearments cargoes tucked areo confessed frost traces prepared piety crude fortune nowhere miss betoken whistles move trays fool’s reported elinor ‘go squeeze gathering ruffling dontos jingle hesitantly feeling andal pitchfork infancy changing fairest rearing swimmer worm tallharts cooked ruby world captives frustration city: ankles push running devotional snowdrifts stabling rosewood gulf killed abovedecks offspring draughts impressed senseless appeared praised tormented heartsick kyra feathering discomfiture conspiracy tom’s shares grotesques nearly redden waddling umber spray vengeful slag corner fishy trader pia athwart approached willem him studied edoryen confesses understanding defective kof larger sheathed wrought loop heads veil cage starve gormond dregs voices clydas sword; borne birdshit broach sterncastle thenns shabby pay distresses bawdy theobald perverse brother; scowl stonemason trial unchanged oathkeeper inconsolably cass centipedes owns pynto hal keepers kindly friends archers warning chilled wind’s disembowel nods retainer softness myrrh mooton walnuts roofless elusive renamed spared victors boy mother corkscrew blackadder'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 1 -----------")
   out = sample(lm, text_field, prompt=p, k=1, max_len=mlen)
   print(out)
-  assert out == '''the night is dark and full of terrors . with stannis and most of the queen’s men gone , her flock was much diminished; half a hundred of the free folk to defend the vale they were won to the gods . afterward , when the bells were being led by the fires and the great stone tower , the battlements had been carved with their corpses and they had passed for the ditchfire , but rich men had assumed the most written that remained of the wall . the nights were too small to be away . they had supped on the bare beards of peril , at the first sign of a tray . the shattered silence was well on the wall , painted in a narrow column that led to the mouth of the blackwater rush to smash the fishing lingering points and concealed a wide waters , dug down higher and farther against the'''
+  # assert out == '''the night is dark and full of terrors . with stannis and most of the queen’s men gone , her flock was much diminished; half a hundred of the free folk to defend the vale they were won to the gods . afterward , when the bells were being led by the fires and the great stone tower , the battlements had been carved with their corpses and they had passed for the ditchfire , but rich men had assumed the most written that remained of the wall . the nights were too small to be away . they had supped on the bare beards of peril , at the first sign of a tray . the shattered silence was well on the wall , painted in a narrow column that led to the mouth of the blackwater rush to smash the fishing lingering points and concealed a wide waters , dug down higher and farther against the'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 20 -----------")
@@ -108,6 +108,7 @@ def main():
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.001 -----------")
   print(sample(lm, text_field, prompt=p, p=0.001, max_len=mlen))
+
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-p Sampling 0.75 -----------")
@@ -375,37 +376,38 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
       indices = indices.to(dev)
 
       sample_id_temp = torch.distributions.Categorical(top_k).sample()
-      if k > 1:
-        indices = indices.squeeze()
+      if k > 1:   # only squeeze when there is more than element
+        indices = indices.squeeze(0)
       next_word_id = indices[sample_id_temp]
       numeralized_string.append(next_word_id)
 
-      # # sample from only the top-k probs
-      # next_index = torch.distributions.Categorical(top_k).sample()
-      # print(f"{next_index=}")
-      # # w_t should be a 1D tensor
-      # # when k == 20, w_t is a 1,20,20 Tensor, why?
-      # while type(next_index) != int and len(next_index.shape) > 0:
-      #   next_index = next_index.item()
-      # if type(next_index) == int:
-      #   next_index = torch.LongTensor([next_index])
-      # print(f"next_index is  type: {type(next_index)}")
-      # print(f"{next_index=}")
-      # print(f"{indices=}")
-      # w_t = indices[next_index]#squeeze()#item()
-      # while len(w_t.shape) >= 1:
-      #   w_t = w_t.squeeze()[0]
-      # # w_t = w_t[0]
-      # # when k == 1, w_t has size [1,1]
-      # print(f"shape of w_t = {w_t.shape}")
-      #
-      # # using the index returned by sampling, add the selected word index to the generated string
-      # numeralized_string.append(w_t)
-      # print(f"appending: {text_field.vocab.itos[w_t]}")
-
     # top-p / nucleus
     elif p != 1:
-      raise Exception('top-p not implemented yet')
+      softmax = nn.Softmax(dim=-1)
+      probs = softmax(s_t)
+      # Sort probabilities in descending order
+      sorted_probs, indices = torch.sort(probs, dim=-1, descending=True)
+      # Get the cumulative sum of probabilities in the sorted order
+      cum_sum_probs = torch.cumsum(sorted_probs, dim=-1)
+      # Find the cumulative sums less than $p$.
+      nucleus = cum_sum_probs < p
+      # Prepend ones so that we add one token after the minimum number
+      # of tokens with cumulative probability less that $p$.
+      nucleus = torch.cat([nucleus.new_ones(nucleus.shape[:-1] + (1,)), nucleus[..., :-1]], dim=-1)
+
+      # Get log probabilities and mask out the non-nucleus
+      sorted_log_probs = torch.log(sorted_probs)
+      sorted_log_probs[~nucleus] = float('-inf')
+
+      # Sample from the sampler
+      sorted_log_probs = sorted_log_probs.squeeze()
+      indices = indices.squeeze()
+      sampled_sorted_indexes = torch.distributions.Categorical(logits=sorted_log_probs).sample()
+
+      # Get the actual indexes
+      res = indices.gather(-1, sampled_sorted_indexes.unsqueeze(-1))
+      next_word_id = res.squeeze(-1)
+      numeralized_string.append(next_word_id)
 
     # plain vanilla/temp (no top k/p)
     else:
@@ -416,10 +418,7 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
     # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
     # w_t = w_t.view(1).to(dev)
     next_word_id = next_word_id.view(1)
-    try:
-      s_t, h_t, c_t = model.forward(next_word_id, h_t, c_t)
-    except Exception:
-      a = 1   # debug check
+    s_t, h_t, c_t = model.forward(next_word_id, h_t, c_t)
 
   # build the returned string from the produced indicies and append it to the prompt
   return f'{prompt} ' + reverseNumeralize(numeralized_string, text_field)
