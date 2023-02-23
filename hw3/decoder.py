@@ -104,6 +104,15 @@ def main():
   print("\n----------- Beam Search B=1 -----------")
   print(beamsearch(lm, text_field, prompt=p, beams=1, max_len=mlen))
 
+  # TODO remove
+  torch.manual_seed(seed);
+  np.random.seed(seed)
+  print("\n----------- Beam Search B=3 -----------")
+  print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
+
+  exit()
+  # END TODO remove
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Beam Search B=10 -----------")
   print(beamsearch(lm, text_field, prompt=p, beams=10, max_len=mlen))
@@ -134,6 +143,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   max_len = 5
   print(f"TODO: max_length temporarily shortened to {max_len}")
   # TODO: should we use temp, top-k, or top-p?
+  temp = 1.0
   # temp = 1.0, k = 0, p = 1
 
   # each beam will have its own hidden/cell state in the list
@@ -141,6 +151,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   h_t = []
   c_t = []
   s_t = []
+  numeralized_string = []
 
   # initialize separate hidden state/cell for each beam
   for b in range(beams):
@@ -162,135 +173,23 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     c_t[b] = c_prompt
     # now it's a 1d tensor 1x20002
 
+    numeralized_string.append([])
+
   # sample each beam separately
   for i in tqdm.tqdm(range(max_len)):
     # expansion
     for b in range(beams):
-      pass
+      # this allows temp scaling along with top-k OR top-p
+      # s_t is Tensor(20002)
+      s_t[b] = s_t[b] / temp
+      # normalized Tensor(20002)
+      probs = F.softmax(s_t)
+      probs = probs.to(dev)
 
     # selection
 
   return decodedString
 
-
-# def do_not_use(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
-#
-#     # nucleus top-p
-#     if p < 1:
-#       # probs is Tensor(20002)
-#       # (1, V)
-#       probs = F.softmax(s_t)
-#       # top k is Tensor(k), indices Tensor(k)
-#       # (
-#       top_k, indices = torch.topk(probs, k)
-#       w_t = torch.distributions.Categorical(top_k).sample()
-#       next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
-#       # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-#       # next_word_index = w_t.item()# indices.item()
-#       next_word = text_field.vocab.itos[next_word_index]
-#       # next_word = text_field.vocab.itos[w_t]
-#       # top_k, indicies = torch.topk(probs, k)
-#       # w_t = torch.distributions.Categorical(top_k).sample()
-#       # next_word = text_field.vocab.itos[w_t]
-#     # if k is 0: vanilla (temp=1) and temperature scaling
-#     elif k == 0:
-#       # s_t is Tensor(20002)
-#       s_t = s_t / temp
-#       # normalized Tensor(20002)
-#       probs = F.softmax(s_t)
-#       w_t = torch.distributions.Categorical(probs).sample()
-#       # next_word = text_field.vocab.itos[w_t]
-#       next_word = text_field.vocab.itos[w_t]
-#
-#     else:  # top k sampling
-#       # probs is Tensor(20002)
-#       # (1, V)
-#       probs = F.softmax(s_t)
-#       # top k is Tensor(k), indices Tensor(k)
-#       # (
-#       top_k, indices = torch.topk(probs, k)
-#       w_t = torch.distributions.Categorical(top_k).sample()
-#       next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
-#       # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-#       # next_word_index = w_t.item()# indices.item()
-#       next_word = text_field.vocab.itos[next_word_index]
-#       # next_word = text_field.vocab.itos[w_t]
-#       # top_k, indicies = torch.topk(probs, k)
-#       # w_t = torch.distributions.Categorical(top_k).sample()
-#       # next_word = text_field.vocab.itos[w_t]
-#
-#     decodedString += f' {next_word}'
-#
-#     # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
-#
-#     # cannot put whole decoded string in process
-#     # w_t = text_field.process([text_field.tokenize(decodedString)])
-#     # s_t shape = (8, 20002)
-#     # h_t & c_t shape = (3, 512)
-#     # w_t = torch.tensor([[w_t]])
-#     w_t = w_t.view(1).to(dev)
-#     s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
-#
-#     # s_t un-normalized (logit)
-#     # one distribution per time step
-#     '''
-#     at time 0, put in full prompt
-#     take pred at time t and sample word t+1 from pred
-#
-#     '''
-#     #
-#     # # TODO: select next word based on params (e.g. vanilla, temp, etc)
-#     # # if k is 0: vanilla (temp=1) and temperature scaling
-#     # if k == 0:
-#     #   s_t = s_t / temp
-#     #
-#     # out = F.softmax(s_t, dim=1)
-#     # # next_idx = torch.max(out, 1)[0]
-#     # # values & indicies shape = (20002)
-#     # (values, indicies) = torch.max(out, dim=0)
-#     #
-#     # # TODO: why are the first couple of entries 0?
-#     # for i in indicies:
-#     #   if i != 0:
-#     #     next_word = text_field.vocab.itos[indicies[i]]
-#     #     break
-#     #
-#     #
-#     # decodedString += f' {next_word}'
-#
-#   return decodedString
-
-# def top_p(logits: torch.Tensor, p):
-#   """
-#   Sample from logits with Nucleus Sampling
-#   Reference: https://nn.labml.ai/sampling/nucleus.html
-#   """
-#
-#   # Get probabilities $P(x_i | x_{1:i-1})$
-#   probs = F.softmax(logits)
-#
-#   # Sort probabilities in descending order
-#   sorted_probs, indices = torch.sort(probs, dim=-1, descending=True)
-#   # Get the cumulative sum of probabilities in the sorted order
-#   cum_sum_probs = torch.cumsum(sorted_probs, dim=-1)
-#   # Find the cumulative sums less than $p$.
-#   nucleus = cum_sum_probs < p
-#   # Prepend ones so that we add one token after the minimum number
-#   # of tokens with cumulative probability less that $p$.
-#   nucleus = torch.cat([nucleus.new_ones(nucleus.shape[:-1] + (1,)), nucleus[..., :-1]], dim=-1)
-#
-#   # Get log probabilities and mask out the non-nucleus
-#   sorted_log_probs = torch.log(sorted_probs)
-#   sorted_log_probs[~nucleus] = float('-inf')
-#
-#   # Sample from the sampler
-#   sampled_sorted_indexes = self.sampler(sorted_log_probs)
-#
-#   # Get the actual indexes
-#   res = indices.gather(-1, sampled_sorted_indexes.unsqueeze(-1))
-#
-#   #
-#   return res.squeeze(-1)
 
 ############################################################################################
 # TASK 1.2
