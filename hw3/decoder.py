@@ -85,7 +85,7 @@ def main():
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 1 -----------")
   # print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
-
+  print("TODO skipped Top-k 1")                                    # TODO
 
 
   torch.manual_seed(seed); np.random.seed(seed)
@@ -151,93 +151,6 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   # sample(model, text_field, prompt, max_len=max_len, temp=0, k=beams)
 
   return decodedString
-
-def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
-  # initialize values
-  # w_t shape = (8)
-  w_t = text_field.process([text_field.tokenize(prompt.lower())])
-  # h_t & c_t shape = (3, 512)
-  h_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
-  c_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
-
-  # send all to cuda
-  w_t = w_t.squeeze().to(dev)
-  h_t = h_t.to(dev)
-  c_t = c_t.to(dev)
-
-  decodedString = f'{prompt} '
-
-  # TODO: w_t never changes
-  '''
-  one way: feed prompt to model BEFORE the loop
-    call forward
-  need final state, hidden, cell state (i.e. s_t[-1])
-  '''
-  s_prompt, h_prompt, c_prompt = model.forward(w_t, h_t, c_t)
-  s_t = s_prompt[-1]
-  h_t = h_prompt
-  c_t = c_prompt
-  # now it's a 1d tensor 1x20002
-
-  # loop up to max length
-  for i in tqdm.tqdm(range(max_len)):
-    # sample new word from s_t
-
-    # nucleus top-p
-    if p < 1:
-      # probs is Tensor(20002)
-      # (1, V)
-      probs = F.softmax(s_t)
-      # top k is Tensor(k), indices Tensor(k)
-      # (
-      top_k, indices = torch.topk(probs, k)
-      w_t = torch.distributions.Categorical(top_k).sample()
-      next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = w_t.item()# indices.item()
-      next_word = text_field.vocab.itos[next_word_index]
-      # next_word = text_field.vocab.itos[w_t]
-      # top_k, indicies = torch.topk(probs, k)
-      # w_t = torch.distributions.Categorical(top_k).sample()
-      # next_word = text_field.vocab.itos[w_t]
-    # if k is 0: vanilla (temp=1) and temperature scaling
-    elif k == 0:
-      # s_t is Tensor(20002)
-      s_t = s_t / temp
-      # normalized Tensor(20002)
-      probs = F.softmax(s_t)
-      w_t = torch.distributions.Categorical(probs).sample()
-      # next_word = text_field.vocab.itos[w_t]
-      next_word = text_field.vocab.itos[w_t]
-
-    else:  # top k sampling
-      # probs is Tensor(20002)
-      # (1, V)
-      probs = F.softmax(s_t)
-      # top k is Tensor(k), indices Tensor(k)
-      # (
-      top_k, indices = torch.topk(probs, k)
-      w_t = torch.distributions.Categorical(top_k).sample()
-      next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = w_t.item()# indices.item()
-      next_word = text_field.vocab.itos[next_word_index]
-      # next_word = text_field.vocab.itos[w_t]
-      # top_k, indicies = torch.topk(probs, k)
-      # w_t = torch.distributions.Categorical(top_k).sample()
-      # next_word = text_field.vocab.itos[w_t]
-
-    decodedString += f' {next_word}'
-
-    # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
-
-    # cannot put whole decoded string in process
-    # w_t = text_field.process([text_field.tokenize(decodedString)])
-    # s_t shape = (8, 20002)
-    # h_t & c_t shape = (3, 512)
-    # w_t = torch.tensor([[w_t]])
-    w_t = w_t.view(1).to(dev)
-    s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
 
 ############################################################################################
 # TASK 1.2
