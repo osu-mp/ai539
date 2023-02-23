@@ -60,33 +60,40 @@ def main():
   mlen = 150
 
   # TODO remove this
-  torch.manual_seed(seed);
-  np.random.seed(seed)
-  print("\n----------- Beam Search B=3 -----------")
-  print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
-  print('DONE WITH BEAM 3')
-  exit()
+  # torch.manual_seed(seed);
+  # np.random.seed(seed)
+  # print("\n----------- Beam Search B=3 -----------")
+  # print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
+  # print('DONE WITH BEAM 3')
+  # exit()
 
   # END REMOVE THIS
 
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Vanilla Sampling -----------")
-  print(sample(lm, text_field, prompt=p, max_len=mlen))
+  out = sample(lm, text_field, prompt=p, max_len=mlen)
+  print(out)
+  assert out == '''the night is dark and full of terrors . after no one was dead . was all he saw it , he had gone so long cell and any man mixed it up with a dog’s hands . " if your chain is to be heard , " a king said , strutting to range . gared had warned him for the taste . " my sweet king . " " who let poor choice find another for my gold is on him , jojen . i know you did , my lord . " melisandre laughed . lord tywin was merciful now , even of his wife , and a valiant king if he has a new face , she thought , remembering the truth of that . he’d cheered me through and battle of the walls , he told me afterward . . . or even cersei ? catelyn , you were the one who knows'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 0.0001 -------")
-  print(sample(lm, text_field, prompt=p, temp=0.0001, max_len=mlen))
+  out = sample(lm, text_field, prompt=p, temp=0.0001, max_len=mlen)
+  print(out)
+  assert out == '''the night is dark and full of terrors . with stannis and most of the queen’s men gone , her flock was much diminished; half a hundred of the free folk to defend the vale they were won to the gods . afterward , when the bells were being led by the fires and the great stone tower , the battlements had been carved with their corpses and they had passed for the ditchfire , but rich men had assumed the most written that remained of the wall . the nights were too small to be away . they had supped on the bare beards of peril , at the first sign of a tray . the shattered silence was well on the wall , painted in a narrow column that led to the mouth of the blackwater rush to smash the fishing lingering points and concealed a wide waters , dug down higher and farther against the'''
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n------- Temp-Scaled Sampling 100 --------")
-  print(sample(lm, text_field, prompt=p, temp=100, max_len=mlen))
-  
+  out = sample(lm, text_field, prompt=p, temp=100, max_len=mlen)
+  print(out)
+  assert out == '''the night is dark and full of terrors herring depart: endearments cargoes tucked areo confessed frost traces prepared piety crude fortune nowhere miss betoken whistles move trays fool’s reported elinor ‘go squeeze gathering ruffling dontos jingle hesitantly feeling andal pitchfork infancy changing fairest rearing swimmer worm tallharts cooked ruby world captives frustration city: ankles push running devotional snowdrifts stabling rosewood gulf killed abovedecks offspring draughts impressed senseless appeared praised tormented heartsick kyra feathering discomfiture conspiracy tom’s shares grotesques nearly redden waddling umber spray vengeful slag corner fishy trader pia athwart approached willem him studied edoryen confesses understanding defective kof larger sheathed wrought loop heads veil cage starve gormond dregs voices clydas sword; borne birdshit broach sterncastle thenns shabby pay distresses bawdy theobald perverse brother; scowl stonemason trial unchanged oathkeeper inconsolably cass centipedes owns pynto hal keepers kindly friends archers warning chilled wind’s disembowel nods retainer softness myrrh mooton walnuts roofless elusive renamed spared victors boy mother corkscrew blackadder'''
+
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 1 -----------")
-  # print(sample(lm, text_field, prompt=p, k=1, max_len=mlen))
-  print("TODO skipped Top-k 1")                                    # TODO
-
+  out = sample(lm, text_field, prompt=p, k=1, max_len=mlen)
+  print(out)
+  assert out.startswith('''the night is dark and full of terrors . with stannis and most of the queen’s men gone , h''')
+  exit()
 
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Top-k Sampling 20 -----------")
@@ -296,6 +303,75 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   h_t = h_t.to(dev)
   c_t = c_t.to(dev)
 
+  # TODO: w_t never changes
+  '''
+  one way: feed prompt to model BEFORE the loop
+    call forward
+  need final state, hidden, cell state (i.e. s_t[-1])
+  '''
+  s_prompt, h_prompt, c_prompt = model.forward(w_t, h_t, c_t)
+  s_t = s_prompt[-1]
+  h_t = h_prompt
+  c_t = c_prompt
+  # now it's a 1d tensor 1x20002
+
+  numeralized_string = []
+
+  # loop up to max length
+  for i in tqdm.tqdm(range(max_len)):
+    # sample new word from s_t
+
+    # this allows temp scaling along with top-k OR top-p
+    # s_t is Tensor(20002)
+    s_t = s_t / temp
+    # normalized Tensor(20002)
+    probs = F.softmax(s_t)
+
+    if k >= 1:
+      # top k is Tensor(k), indices Tensor(k)
+      top_k, indices = torch.topk(probs, k)
+        # w_t = torch.distributions.Categorical(top_k).sample()
+      next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
+        # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
+        # next_word_index = w_t.item()# indices.item()
+      # next_word = text_field.vocab.itos[next_word_index]
+        # next_word = text_field.vocab.itos[w_t]
+        # top_k, indicies = torch.topk(probs, k)
+        # w_t = torch.distributions.Categorical(top_k).sample()
+        # next_word = text_field.vocab.itos[w_t]
+
+
+    elif p != 1:
+      raise Exception('top-p not implemented yet')
+
+    else:
+      # plain vanilla/temp (no top k/p)
+      w_t = torch.distributions.Categorical(probs).sample()
+      numeralized_string.append(w_t)
+
+    # step model forward one step (given wt,ht,ct get t+1 st ht and ct)
+    w_t = w_t.view(1).to(dev)
+    s_t, h_t, c_t = model.forward(w_t, h_t, c_t)
+
+  # build the returned string from the produced indicies and append it to the prompt
+  return f'{prompt} ' + reverseNumeralize(numeralized_string, text_field)
+
+
+def old_sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
+  assert (k == 0 or p == 1), "Cannot combine top-k and top-p sampling"
+
+  # initialize values
+  # w_t shape = (8)
+  w_t = text_field.process([text_field.tokenize(prompt.lower())])
+  # h_t & c_t shape = (3, 512)
+  h_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
+  c_t = torch.nn.Parameter(torch.zeros(size=(model.num_layers, model.hidden_size)))
+
+  # send all to cuda
+  w_t = w_t.squeeze().to(dev)
+  h_t = h_t.to(dev)
+  c_t = c_t.to(dev)
+
   decodedString = f'{prompt} '
 
   # TODO: w_t never changes
@@ -310,55 +386,49 @@ def sample(model, text_field, prompt="", max_len=50, temp=1.0, k=0, p=1):
   c_t = c_prompt
   # now it's a 1d tensor 1x20002
 
-  # loop up to max length
-  for i in tqdm.tqdm(range(max_len)):
-    # sample new word from s_t
+  # nucleus top-p
+  if p < 1:
+    # probs is Tensor(20002)
+    # (1, V)
+    probs = F.softmax(s_t)
+    # top k is Tensor(k), indices Tensor(k)
+    # (
+    top_k, indices = torch.topk(probs, k)
+    w_t = torch.distributions.Categorical(top_k).sample()
+    next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
+    # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
+    # next_word_index = w_t.item()# indices.item()
+    next_word = text_field.vocab.itos[next_word_index]
+    # next_word = text_field.vocab.itos[w_t]
+    # top_k, indicies = torch.topk(probs, k)
+    # w_t = torch.distributions.Categorical(top_k).sample()
+    # next_word = text_field.vocab.itos[w_t]
+  # if k is 0: vanilla (temp=1) and temperature scaling
+  elif k == 0:
+    # s_t is Tensor(20002)
+    s_t = s_t / temp
+    # normalized Tensor(20002)
+    probs = F.softmax(s_t)
+    w_t = torch.distributions.Categorical(probs).sample()
+    # next_word = text_field.vocab.itos[w_t]
+    next_word = text_field.vocab.itos[w_t]
 
-    # TODO: allow temp scaling along with top-k OR top-p
-
-    # nucleus top-p
-    if p < 1:
-      # probs is Tensor(20002)
-      # (1, V)
-      probs = F.softmax(s_t)
-      # top k is Tensor(k), indices Tensor(k)
-      # (
-      top_k, indices = torch.topk(probs, k)
-      w_t = torch.distributions.Categorical(top_k).sample()
-      next_word_index = indices.squeeze()[w_t]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = w_t.item()# indices.item()
-      next_word = text_field.vocab.itos[next_word_index]
-      # next_word = text_field.vocab.itos[w_t]
-      # top_k, indicies = torch.topk(probs, k)
-      # w_t = torch.distributions.Categorical(top_k).sample()
-      # next_word = text_field.vocab.itos[w_t]
-    # if k is 0: vanilla (temp=1) and temperature scaling
-    elif k == 0:
-      # s_t is Tensor(20002)
-      s_t = s_t / temp
-      # normalized Tensor(20002)
-      probs = F.softmax(s_t)
-      w_t = torch.distributions.Categorical(probs).sample()
-      # next_word = text_field.vocab.itos[w_t]
-      next_word = text_field.vocab.itos[w_t]
-
-    else:           # top k sampling
-      # probs is Tensor(20002)
-      # (1, V)
-      probs = F.softmax(s_t)
-      # top k is Tensor(k), indices Tensor(k)
-      # (
-      top_k, indices = torch.topk(probs, k)
-      w_t = torch.distributions.Categorical(top_k).sample()
-      next_word_index = indices.squeeze()[w_t]                # squeeze to reduce (1,20) to (20)
-      # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
-      # next_word_index = w_t.item()# indices.item()
-      next_word = text_field.vocab.itos[next_word_index]
-      # next_word = text_field.vocab.itos[w_t]
-      # top_k, indicies = torch.topk(probs, k)
-      # w_t = torch.distributions.Categorical(top_k).sample()
-      # next_word = text_field.vocab.itos[w_t]
+  else:           # top k sampling
+    # probs is Tensor(20002)
+    # (1, V)
+    probs = F.softmax(s_t)
+    # top k is Tensor(k), indices Tensor(k)
+    # (
+    top_k, indices = torch.topk(probs, k)
+    w_t = torch.distributions.Categorical(top_k).sample()
+    next_word_index = indices.squeeze()[w_t]                # squeeze to reduce (1,20) to (20)
+    # next_word_index = indices[w_t.squeeze()]  # squeeze to reduce (1,20) to (20)
+    # next_word_index = w_t.item()# indices.item()
+    next_word = text_field.vocab.itos[next_word_index]
+    # next_word = text_field.vocab.itos[w_t]
+    # top_k, indicies = torch.topk(probs, k)
+    # w_t = torch.distributions.Categorical(top_k).sample()
+    # next_word = text_field.vocab.itos[w_t]
 
 
     decodedString += f' {next_word}'
