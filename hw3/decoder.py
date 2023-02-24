@@ -133,7 +133,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
   # param check
   assert beams >= 0, "You must have at least one beam, silly"
 
-  # a beam search of 1 is not really a beam search, so return output from top-k of 1
+  # a beam search of 1 is a greedy breadth first search, so we can just do top-k of 1
   if beams == 1:
     return sample(model, text_field, prompt, max_len=max_len, k=1)
 
@@ -167,7 +167,6 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     c_t[b] = c_prompt
     # now it's a 1d tensor 1x20002
 
-
     numeralized_string.append([])
 
   # sample each beam separately
@@ -178,6 +177,7 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     # beam_indices = []
     combined_probs = torch.Tensor()
     combined_indicies = torch.Tensor()
+
 
     for b in range(beams):
       # this allows temp scaling along with top-k OR top-p
@@ -213,9 +213,10 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     next_s_t = []
     next_h_t = []
     next_c_t = []
-    next_numeralized_string = []
     beam_ind = 0
     next_word_ids = []
+    if beams == 1:
+      top_indicies = top_indicies.unsqueeze(dim=0)
     for index in top_indicies:
       next_word_index = index.item()
       beam_num = index.item() // beams
@@ -224,14 +225,13 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
       next_h_t.append(h_t[beam_num].clone())
       next_c_t.append(c_t[beam_num].clone())
       next_word_ids.append(next_word_index)
-      next_numeralized_string.append(numeralized_string[beam_num])
       beam_ind += 1
 
     s_t = next_s_t.copy()
     h_t = next_h_t.copy()
     c_t = next_c_t.copy()
-    numeralized_string = next_numeralized_string.copy()
 
+    # sample the selected next word per beam through the model
     for b in range(beams):
       next_word_this_beam = torch.LongTensor([int(next_word_ids[b])])
       numeralized_string[b].append(next_word_this_beam)
