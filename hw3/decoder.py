@@ -59,12 +59,12 @@ def main():
   mlen = 150
 
   # TODO remove
-  # torch.manual_seed(seed);
-  # np.random.seed(seed)
-  # print("\n----------- Beam Search B=3 -----------")
-  # print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
-  #
-  # exit()
+  torch.manual_seed(seed);
+  np.random.seed(seed)
+  print("\n----------- Beam Search B=3 -----------")
+  print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
+
+  exit()
   # END TODO remove
 
   torch.manual_seed(seed); np.random.seed(seed)
@@ -244,9 +244,9 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
       next_word_index = index.item()
       beam_num = index.item() // 3
       print(f"{index} is from beam {beam_num}")
-      next_s_t.append(s_t[beam_num].copy())
-      next_h_t.append(h_t[beam_num].copy())
-      next_c_t.append(c_t[beam_num].copy())
+      next_s_t.append(s_t[beam_num].clone())
+      next_h_t.append(h_t[beam_num].clone())
+      next_c_t.append(c_t[beam_num].clone())
       next_word_ids.append(next_word_index)
       next_numeralized_string.append(numeralized_string[beam_num])
       beam_ind += 1
