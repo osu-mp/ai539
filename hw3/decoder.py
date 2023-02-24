@@ -58,15 +58,6 @@ def main():
   seed = 42
   mlen = 150
 
-  # TODO remove
-  torch.manual_seed(seed);
-  np.random.seed(seed)
-  print("\n----------- Beam Search B=3 -----------")
-  print(beamsearch(lm, text_field, prompt=p, beams=3, max_len=mlen))
-
-  exit()
-  # END TODO remove
-
   torch.manual_seed(seed); np.random.seed(seed)
   print("\n----------- Vanilla Sampling -----------")
   out = sample(lm, text_field, prompt=p, max_len=mlen)
@@ -139,13 +130,15 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     
     **remember: hidden state is everything that comes before
   '''
-  # TODO: using short max_length, remove
-  max_len = 5
-  print(f"TODO: max_length temporarily shortened to {max_len}")
-  # TODO: should we use temp, top-k, or top-p?
+  # param check
+  assert beams >= 0, "You must have at least one beam, silly"
+
+  # a beam search of 1 is not really a beam search, so return output from top-k of 1
+  if beams == 1:
+    return sample(model, text_field, prompt, max_len=max_len, k=1)
+
+  # TODO: param to tune later: temperature
   temp = 1.0
-  k = 0
-  p = 1
 
   # each beam will have its own hidden/cell state/numeralized string in the list
   w_t = []
@@ -194,41 +187,24 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
       probs = F.softmax(s_t[b])
       probs = probs.to(dev)
 
-
       # we want to get the highest b probs across all beams, so at most
       # we can take b probs from each beam. use the top k func to get the
       # probs and indicies for comparison during selection
       top_probs, top_indicies = torch.topk(probs, beams)
-      # beam_probs.append(top_probs)
-      # beam_indices.append(top_indicies)
       combined_probs = torch.cat((combined_probs, top_probs), -1)
       combined_indicies = torch.cat((combined_indicies, top_indicies), -1)
-
-      # # TODO: use top-k or top-p?
-      # if k >= 1:
-      #   raise Exception('not used yet')
-      # elif p != 1:
-      #   raise Exception('not used yet')
-      # else:
-      #   next_word_id = torch.distributions.Categorical(probs).sample()
-      #   numeralized_string.append(next_word_id)
-      #
-      # next_word_id = next_word_id.view(1)
-
 
     # selection: find the top b out of all beams
     '''
     pseudo code:
       select top b probs from all probs (use torch.cat to combine?)
     '''
-    # combined_probs = torch.Tensor()
-    # for b in bea
-    print(f"BEAM PROBS {combined_probs}")
-      # now selected the top from all combined and use that for next word step
+    # print(f"BEAM PROBS {combined_probs}")
+    # now select the top from all combined and use that for next word step
 
     top_probs, top_indicies = torch.topk(combined_probs, beams, dim=-1)
-    print(f"TOP PROBS {top_probs}")
-    print(f"TOP INDIC {top_indicies}")
+    # print(f"TOP PROBS {top_probs}")
+    # print(f"TOP INDIC {top_indicies}")
     top_indicies = top_indicies.squeeze()
     # temp vars to hold the next state of each beam since we may copy from
     # one beam to multiple
@@ -242,8 +218,8 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     next_word_ids = []
     for index in top_indicies:
       next_word_index = index.item()
-      beam_num = index.item() // 3
-      print(f"{index} is from beam {beam_num}")
+      beam_num = index.item() // beams
+      # print(f"{index} is from beam {beam_num}")
       next_s_t.append(s_t[beam_num].clone())
       next_h_t.append(h_t[beam_num].clone())
       next_c_t.append(c_t[beam_num].clone())
@@ -257,11 +233,13 @@ def beamsearch(model, text_field, beams=5, prompt="", max_len=50):
     numeralized_string = next_numeralized_string.copy()
 
     for b in range(beams):
-      next_word_this_beam = next_word_ids[b]
+      next_word_this_beam = torch.LongTensor([int(next_word_ids[b])])
       numeralized_string[b].append(next_word_this_beam)
-      s_t[b], h_t[b], c_t[b] = model.forward(torch.Tensor([next_word_this_beam]), h_t[b], c_t[b])
+      s_t[b], h_t[b], c_t[b] = model.forward(next_word_this_beam, h_t[b], c_t[b])
 
-  return decodedString
+  # build the returned string from the produced indicies and append it to the prompt
+  # use the first beam to build the string
+  return f'{prompt} ' + reverseNumeralize(numeralized_string[0], text_field)
 
 
 ############################################################################################
