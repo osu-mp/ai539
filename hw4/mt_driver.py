@@ -155,20 +155,36 @@ def main():
 
 class SingleQueryScaledDotProductAttention(nn.Module):    
     
-    # kq_dim  is the  dimension  of keys  and  values. Linear  layers  should  be usedto  project  inputs  to these  dimensions.
+    # kq_dim is the dimension of keys and values.
+    # Linear layers should be used to project inputs to these dimensions.
     def __init__(self, enc_hid_dim, dec_hid_dim, kq_dim=512):
         super().__init__()
-        
+
 
         
 
     #hidden  is h_t^{d} from Eq. (11)  and has  dim => [batch_size , dec_hid_dim]
     #encoder_outputs  is the  word  representations  from Eq. (6)
     # and has dim => [src_len , batch_size , enc_hid_dim * 2]
-    def forward(self, hidden, encoder_outputs):      
-    
-    
+    def forward(self, hidden, encoder_outputs):
+        """
 
+        :param hidden: decoder hidden state (h_i)^d
+        :param encoder_outputs: word representations (h_t)^e
+        :return:
+        """
+
+        # TODO convert into keys, queries, and values
+        # q = (w_q)*(h_j)^d
+        # k_t = (w_k)*(h_t)^e
+        # v_t = (h_t)^e
+
+        # TODO
+        # attended_val = attended value vector (eq 1)
+        # attended_val = exp(q*(k_i)^T/sqrt(d)) / sum(all attended_val)
+        # alpha = attention values (eq 2)
+        # alpha = sum(attended_val * v_j)
+    
         assert attended_val.shape == (hidden.shape[0], encoder_outputs.shape[2])
         assert alpha.shape == (hidden.shape[0], encoder_outputs.shape[0])
         
@@ -197,8 +213,8 @@ class MeanPool(nn.Module):
         
     def forward(self, hidden, encoder_outputs):
         
-        output = torch.mean(encoder_outputs, dim=0, keepdim=True).squeeze(0)
-        alpha = F.softmax(torch.ones(hidden.shape[0], encoder_outputs.shape[0]), dim=0)
+        output = torch.mean(encoder_outputs, dim=-1, keepdim=True).squeeze(0)
+        alpha = F.softmax(torch.ones(hidden.shape[0], encoder_outputs.shape[0]), dim=-1)
 
         return output, alpha
 
