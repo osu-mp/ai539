@@ -159,9 +159,13 @@ class SingleQueryScaledDotProductAttention(nn.Module):
     # Linear layers should be used to project inputs to these dimensions.
     def __init__(self, enc_hid_dim, dec_hid_dim, kq_dim=512):
         super().__init__()
+        # enc_hid_dim = 512, dec_hid_dim = 512
+        # build wq and wk (eq. 13 & 14)
+        self.wq = nn.Linear()   #    TODO set input size
+        self.wk = nn.Linear()
 
+        self.d = kq_dim # TODO
 
-        
 
     #hidden  is h_t^{d} from Eq. (11)  and has  dim => [batch_size , dec_hid_dim]
     #encoder_outputs  is the  word  representations  from Eq. (6)
@@ -173,17 +177,36 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         :param encoder_outputs: word representations (h_t)^e
         :return:
         """
+        """
+        hidden & encoder states are given,
+        params specific to this are (do not depend on inputs):
+              
+        """
+        # steps: make the keys/queries/values
 
         # TODO convert into keys, queries, and values
-        # q = (w_q)*(h_j)^d
-        # k_t = (w_k)*(h_t)^e
-        # v_t = (h_t)^e
+        # q = (w_q)*(h_j) (decoder)
+        # k_t = (w_k)*(h_t) (encoder)
+        # v_t = (h_t) (encoder)
+
+        """
+        batched operations (h = (batch size, dimensionality))
+        TODO look at shapes of hd and he
+        doing k * q -> batch matrix multiply in pytorch:
+        permute: preserves order of matrix 
+        """
 
         # TODO
         # attended_val = attended value vector (eq 1)
         # attended_val = exp(q*(k_i)^T/sqrt(d)) / sum(all attended_val)
+            # d = dimensionality
+        # https: // pytorch.org / docs / stable / generated / torch.bmm.html
+        # find tutorial as reference
+
         # alpha = attention values (eq 2)
         # alpha = sum(attended_val * v_j)
+        # may use another mat mult
+        # see L6.1 (transformers)
     
         assert attended_val.shape == (hidden.shape[0], encoder_outputs.shape[2])
         assert alpha.shape == (hidden.shape[0], encoder_outputs.shape[0])
