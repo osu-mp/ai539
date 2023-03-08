@@ -68,6 +68,7 @@ def main():
 
 
     BATCH_SIZE = 128
+    # BATCH_SIZE = 2  # TODO remove
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
         (train_data, valid_data, test_data), 
@@ -166,8 +167,8 @@ class SingleQueryScaledDotProductAttention(nn.Module):
 
         # enc_hid_dim = 512, dec_hid_dim = 512
         # build wq and wk (eq. 13 & 14)
-        self.wq = nn.Linear(in_features=enc_hid_dim, out_features=dec_hid_dim)   #    TODO set input size
-        self.wk = nn.Linear(in_features=dec_hid_dim, out_features=kq_dim)
+        self.wq = nn.Linear(in_features=enc_hid_dim, out_features=dec_hid_dim)
+        self.wk = nn.Linear(in_features=2*dec_hid_dim, out_features=kq_dim)
 
         # zout = torch.zeros((hidden.shape[0], encoder_outputs.shape[2])).to(self.dev)
         # zatt = torch.zeros((hidden.shape[0], encoder_outputs.shape[0])).to(self.dev)
@@ -185,8 +186,10 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         """
         hidden & encoder states are given,
         params specific to this are (do not depend on inputs):
-              
+        
         """
+        max_len = encoder_outputs.shape[0]
+        batch_size = encoder_outputs.shape[1]
         # steps: make the keys/queries/values
         # dim = 512
         # hidden -> Tensor(B, 512) (B = 128)
@@ -194,9 +197,11 @@ class SingleQueryScaledDotProductAttention(nn.Module):
 
         # TODO convert into keys, queries, and values
         # q = (w_q)*(h_j) (decoder)
+        queries = self.wq(hidden)
         # k_t = (w_k)*(h_t) (encoder)
+        keys = self.wk(encoder_outputs)
         # v_t = (h_t) (encoder)
-        q = self.wq * hidden
+        values = encoder_outputs
 
         """
         batched operations (h = (batch size, dimensionality))
@@ -211,12 +216,23 @@ class SingleQueryScaledDotProductAttention(nn.Module):
             # d = dimensionality
         # https: // pytorch.org / docs / stable / generated / torch.bmm.html
         # find tutorial as reference
+        alpha = torch.bmm(queries.view(batch_size, 1, self.kq_dim),
+                          keys.view(batch_size, self.kq_dim, max_len))
+        alpha = alpha / np.sqrt(self.kq_dim)
+        alpha = F.softmax(alpha)
+        alpha = alpha.squeeze()
 
         # alpha = attention values (eq 2)
         # alpha = sum(attended_val * v_j)
         # may use another mat mult
         # see L6.1 (transformers)
-    
+        #attended_val = (batch_size, 2*self.kq_dim)
+        # b x n x m * b x m x p -> b x n x p
+        # 2 x 1 x 12 * 12 x 2 x 1024
+        attended_val = torch.bmm(alpha.view(batch_size, 1, max_len),
+                                 values.view(batch_size, max_len, self.kq_dim*2))
+        attended_val = attended_val.squeeze(dim=1)
+
         assert attended_val.shape == (hidden.shape[0], encoder_outputs.shape[2])
         assert alpha.shape == (hidden.shape[0], encoder_outputs.shape[0])
         
