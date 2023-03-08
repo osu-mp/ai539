@@ -108,7 +108,7 @@ def main():
         best_valid_loss = float('inf')
 
         for epoch in range(10):
-            
+
             train_loss = train(model, train_iterator, optimizer, criterion, epoch+1)
             valid_loss = evaluate(model, valid_iterator, criterion, epoch+1)
             
@@ -217,7 +217,7 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         alpha = torch.bmm(queries.view(batch_size, 1, self.kq_dim),
                           keys.view(batch_size, self.kq_dim, max_len))
         alpha = alpha / np.sqrt(self.kq_dim)
-        alpha = F.softmax(alpha)
+        alpha = F.softmax(alpha, dim=-1)
         alpha = alpha.squeeze()
         alpha = alpha.view(batch_size, max_len)
 
@@ -531,3 +531,4 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len = 50):
 if __name__ == "__main__":
 
     main()
+
