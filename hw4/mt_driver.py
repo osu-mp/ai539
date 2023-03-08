@@ -68,7 +68,6 @@ def main():
 
 
     BATCH_SIZE = 128
-    # BATCH_SIZE = 2  # TODO remove
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
         (train_data, valid_data, test_data), 
@@ -110,7 +109,6 @@ def main():
 
         for epoch in range(10):
             
-            
             train_loss = train(model, train_iterator, optimizer, criterion, epoch+1)
             valid_loss = evaluate(model, valid_iterator, criterion, epoch+1)
             
@@ -147,7 +145,7 @@ def main():
         
         save_attention_plot(src, translation, attention, example_id)
 
-    print("\n")
+    print("DONE\n")
     
 
 ##########################################################################################
@@ -221,6 +219,7 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         alpha = alpha / np.sqrt(self.kq_dim)
         alpha = F.softmax(alpha)
         alpha = alpha.squeeze()
+        alpha = alpha.view(batch_size, max_len)
 
         # alpha = attention values (eq 2)
         # alpha = sum(attended_val * v_j)
@@ -233,8 +232,12 @@ class SingleQueryScaledDotProductAttention(nn.Module):
                                  values.view(batch_size, max_len, self.kq_dim*2))
         attended_val = attended_val.squeeze(dim=1)
 
-        assert attended_val.shape == (hidden.shape[0], encoder_outputs.shape[2])
-        assert alpha.shape == (hidden.shape[0], encoder_outputs.shape[0])
+        try:
+            assert attended_val.shape == (hidden.shape[0], encoder_outputs.shape[2])
+            assert alpha.shape == (hidden.shape[0], encoder_outputs.shape[0])
+        except Exception:
+            print(attended_val)
+            print(alpha)
         
         return attended_val, alpha
 
