@@ -159,13 +159,18 @@ class SingleQueryScaledDotProductAttention(nn.Module):
     # Linear layers should be used to project inputs to these dimensions.
     def __init__(self, enc_hid_dim, dec_hid_dim, kq_dim=512):
         super().__init__()
+
+        self. enc_hid_dim = enc_hid_dim
+        self.dec_hid_dim = dec_hid_dim
+        self.kq_dim = kq_dim
+
         # enc_hid_dim = 512, dec_hid_dim = 512
         # build wq and wk (eq. 13 & 14)
-        self.wq = nn.Linear()   #    TODO set input size
-        self.wk = nn.Linear()
+        self.wq = nn.Linear(in_features=enc_hid_dim, out_features=dec_hid_dim)   #    TODO set input size
+        self.wk = nn.Linear(in_features=dec_hid_dim, out_features=kq_dim)
 
-        self.d = kq_dim # TODO
-
+        # zout = torch.zeros((hidden.shape[0], encoder_outputs.shape[2])).to(self.dev)
+        # zatt = torch.zeros((hidden.shape[0], encoder_outputs.shape[0])).to(self.dev)
 
     #hidden  is h_t^{d} from Eq. (11)  and has  dim => [batch_size , dec_hid_dim]
     #encoder_outputs  is the  word  representations  from Eq. (6)
@@ -183,11 +188,15 @@ class SingleQueryScaledDotProductAttention(nn.Module):
               
         """
         # steps: make the keys/queries/values
+        # dim = 512
+        # hidden -> Tensor(B, 512) (B = 128)
+        # encoder -> Tensor(TXT, B, 1024) (TXT = 31)
 
         # TODO convert into keys, queries, and values
         # q = (w_q)*(h_j) (decoder)
         # k_t = (w_k)*(h_t) (encoder)
         # v_t = (h_t) (encoder)
+        q = self.wq * hidden
 
         """
         batched operations (h = (batch size, dimensionality))
