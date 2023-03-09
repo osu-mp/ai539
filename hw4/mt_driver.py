@@ -138,11 +138,11 @@ def main():
         trg = vars(test_data.examples[example_id])['trg']
         translation, attention = translate_sentence(src, SRC, TRG, model, dev)
 
-        print("\n--------------------")
-        print(f'src = {src}')
-        print(f'trg = {trg}')
-        print(f'prd = {translation}')
-        
+        # print("\n--------------------")
+        # print(f'src = {src}')
+        # print(f'trg = {trg}')
+        # print(f'prd = {translation}')
+        #
         save_attention_plot(src, translation, attention, example_id)
 
     print("DONE\n")
@@ -165,7 +165,7 @@ class SingleQueryScaledDotProductAttention(nn.Module):
 
         # enc_hid_dim = 512, dec_hid_dim = 512
         # build wq and wk (eq. 13 & 14)
-        self.wq = nn.Linear(in_features=enc_hid_dim, out_features=dec_hid_dim)
+        self.wq = nn.Linear(in_features=enc_hid_dim, out_features=kq_dim)
         self.wk = nn.Linear(in_features=2*dec_hid_dim, out_features=kq_dim)
 
         # zout = torch.zeros((hidden.shape[0], encoder_outputs.shape[2])).to(self.dev)
@@ -208,7 +208,6 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         permute: preserves order of matrix 
         """
 
-        # TODO
         # attended_val = attended value vector (eq 1)
         # attended_val = exp(q*(k_i)^T/sqrt(d)) / sum(all attended_val)
             # d = dimensionality
@@ -218,8 +217,8 @@ class SingleQueryScaledDotProductAttention(nn.Module):
                           keys.view(batch_size, self.kq_dim, max_len))
         alpha = alpha / np.sqrt(self.kq_dim)
         alpha = F.softmax(alpha, dim=-1)
-        alpha = alpha.squeeze()
-        alpha = alpha.view(batch_size, max_len)
+        alpha = alpha.squeeze(dim=1)
+        # alpha = alpha.view(batch_size, max_len)
 
         # alpha = attention values (eq 2)
         # alpha = sum(attended_val * v_j)
@@ -238,7 +237,8 @@ class SingleQueryScaledDotProductAttention(nn.Module):
         except Exception:
             print(attended_val)
             print(alpha)
-        
+            raise Exception('Alpha/attended value wrong shape')
+
         return attended_val, alpha
 
 
@@ -264,7 +264,7 @@ class MeanPool(nn.Module):
         
     def forward(self, hidden, encoder_outputs):
         
-        output = torch.mean(encoder_outputs, dim=-1, keepdim=True).squeeze(0)
+        output = torch.mean(encoder_outputs, dim=0, keepdim=True).squeeze(0)
         alpha = F.softmax(torch.ones(hidden.shape[0], encoder_outputs.shape[0]), dim=-1)
 
         return output, alpha
@@ -531,4 +531,17 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len = 50):
 if __name__ == "__main__":
 
     main()
+
+    # scores
+    import statistics
+    scores = {
+        'sdp': [19.22, 19.43],
+        'none': [19.23, 18.97, 18.93],
+        'mean': [21.57, 23.27, 23.62],
+    }
+
+    for key in scores:
+        print(f"Method: {key}")
+        print(f"\tmean: {statistics.mean(scores[key]):2.3f}")
+        print(f"\tvariance: {statistics.variance(scores[key]):2.3f}")
 
