@@ -526,16 +526,12 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len = 50):
             
         return bleu_score(pred_trgs, trgs)
 
-
-
-if __name__ == "__main__":
-
-    main()
-
+def plot_results():
     # scores
     import statistics
+    # scores recorded from manual runs
     scores = {
-        'sdp': [19.22, 19.43],
+        'sdp': [19.22, 19.43, 18.28],
         'none': [19.23, 18.97, 18.93],
         'mean': [21.57, 23.27, 23.62],
     }
@@ -544,4 +540,11 @@ if __name__ == "__main__":
         print(f"Method: {key}")
         print(f"\tmean: {statistics.mean(scores[key]):2.3f}")
         print(f"\tvariance: {statistics.variance(scores[key]):2.3f}")
+
+
+
+if __name__ == "__main__":
+
+    main()
+    # plot_results()
 
